@@ -446,8 +446,8 @@
     </div>
     <div class="annual-opts" id="annualOptsTeacher">
       <span class="annual-opts-label">表示する情報:</span>
-      <label><input type="checkbox" data-audience="teacher" data-opt="includeMonthly"> 学校行事等(共通・月間のみ)も含める</label>
-      <label><input type="checkbox" data-audience="teacher" data-opt="includeTeacherOnly"> 学校行事等(教員のみ・月間のみ)も含める</label>
+      <label><input type="checkbox" data-audience="teacher" data-opt="includeMonthly"> 「月間」だけにチェックした行事も載せる</label>
+      <label><input type="checkbox" data-audience="teacher" data-opt="includeTeacherOnly"> 「教員のみ」で「月間」にチェックした行事も載せる</label>
       <label><input type="checkbox" data-audience="teacher" data-opt="includeMeeting"> 職員会議のあった日を含める</label>
     </div>
     <div id="previewAnnualTeacherWrap" class="print-target"></div>
@@ -465,8 +465,8 @@
     </div>
     <div class="annual-opts" id="annualOptsFamily">
       <span class="annual-opts-label">表示する情報:</span>
-      <label><input type="checkbox" data-audience="family" data-opt="includeMonthly"> 学校行事等(共通・月間のみ)も含める</label>
-      <label><input type="checkbox" data-audience="family" data-opt="includeTeacherOnly"> 学校行事等(教員のみ・月間のみ)も含める</label>
+      <label><input type="checkbox" data-audience="family" data-opt="includeMonthly"> 「月間」だけにチェックした行事も載せる</label>
+      <label><input type="checkbox" data-audience="family" data-opt="includeTeacherOnly"> 「教員のみ」で「月間」にチェックした行事も載せる</label>
       <label><input type="checkbox" data-audience="family" data-opt="includeMeeting"> 職員会議のあった日を含める</label>
     </div>
     <div id="previewAnnualFamilyWrap" class="print-target"></div>
@@ -910,7 +910,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-27 12:00';
+const APP_VERSION = '2026-10-27 15:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -2789,6 +2789,10 @@ document.addEventListener('copy', (e)=>{
       const inp = document.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
       if(!inp) cells.push('');
       else if(inp.type==='checkbox') cells.push(inp.checked ? '1' : '');
+      // 候補一覧(datalist)のある欄は、クリックしたとき(focusin)に全候補を出すため一時的に中身を空にしている。
+      // 範囲選択の最初のマス(=クリックしたマス)がちょうどこの状態なので、空ではなく元の値をコピーする(2026-10-27 修正。
+      // 以前は最初のマスだけ空でコピーされることがあった)
+      else if(inp.dataset.dlOrig!==undefined && inp.dataset.dlTouched!=='1' && inp.value==='') cells.push(inp.dataset.dlOrig);
       else cells.push(inp.value);
     }
     rows.push(cells.join('\t'));
@@ -4934,10 +4938,11 @@ function jumpToDay(y, m, d, focusField){
 
 //////////////////////// 予定入力の検索 ////////////////////////
 const SEARCH_FIELDS = [
-  ['eventsAnnual','学校行事等(共通・年間)'],
-  ['eventsMonthly','学校行事等(共通・月間のみ)'],
+  // 名前は予定入力のチェック(年間・月間・教員のみ)に合わせる(2026-10-27)
+  ['eventsAnnual','学校行事等(年間)'],
+  ['eventsMonthly','学校行事等(月間のみ)'],
   ['eventsTeacherOnlyAnnual','学校行事等(教員のみ・年間)'],
-  ['eventsTeacherOnly','学校行事等(教員のみ・月間のみ)'],
+  ['eventsTeacherOnly','学校行事等(教員のみ・月間)'],
   ['meeting','会議・出張・研修'],
   ['club','放課後'],
   ['weeklyDuty','週番'],
@@ -5107,6 +5112,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-27</strong>: 「年間予定表」タブのチェックの名前を、予定入力のチェックに合わせて「「月間」だけにチェックした行事も載せる」「「教員のみ」で「月間」にチェックした行事も載せる」に変更(働きは同じです)。予定入力で範囲を選んでコピーしたとき、最初にクリックしたマス(給食・放課後・①〜⑥・週番など候補が出る欄)だけ空でコピーされることがあった問題を直しました。</li>
     <li><strong>2026-10-27</strong>: 「予定入力」の学校行事等を、4つの欄から1つの欄にまとめました。マスをクリックすると、画面の右側にその日の行事の一覧が出て、そこで入力します(別の窓は開きません。◀▶で前の日・次の日に移れます)。行事ごとに「年間」(年間と月間に載る)・「月間」(月間だけ)・「教員のみ」(教員用だけ)のチェックで載せる先を決めます。表のマスでは色で見分けられます(青=年間、黒=月間のみ、緑=教員のみ。太字は年間にも載るもの)。月間予定表・年間予定表などの表示は変わりません。</li>
     <li><strong>2026-10-26</strong>: ほかのパソコンで保存された新しい内容があるのに、古い内容のまま表示・編集されることがあった問題を直しました。「編集する」を押したときは最新の内容を読み直してから編集を始めます。見ているだけのときも、画面に戻ったときや1分おきに確かめて、新しくなっていれば読み直します。保存の前に、ほかで保存されていないかを確かめます(保存されていたら確認を出します)。バックアップのファイルを開いたときは、お知らせを出します。「時数・集計」タブに「道徳・学活・総合の一覧」を追加しました(学年・期間を選ぶと、①〜⑥に「道」「学」「総」がある日と、その日の行事を一覧にします)。</li>
     <li><strong>2026-09-27</strong>: データファイルの形式名を「.dat」から「.json」に変更(中身は同じです)。これまでの .dat ファイルもそのまま開けて、上書き保存もできます。.json にそろえたいときは、一度「名前を付けて保存」で保存し直してください。あわせて、データファイルをメモ帳などで開いても読みやすいよう改行を入れて保存するようにし、自動バックアップのファイル名を「行事予定_バックアップ_日付_時刻.json」に変更しました。</li>
@@ -5242,7 +5248,7 @@ document.getElementById('helpBody').innerHTML = `
   <p>家庭用では、同じデータから会議・出張・研修や週番、教員のみの行事を除いた家庭向けの表示を確認できます。表の右側には元のExcelと同様に、翌月の予定(学校行事等のみ)が一覧表示されます。こちらも「Excelに出力」で出力できます(翌月ボックスもExcel出力に含まれます。元のExcelと同じく、翌月分は行を増やさず右側の列に並べて出力するため、A4横1ページに収まります)。</p>
 
   <h4>年間予定表(教員用・家庭用)の確認・Excel出力</h4>
-  <p>「年間予定表」タブでは、上部の「教員用」「家庭用」ボタンで表示を切り替えられます。どちらも基本は「学校行事等(共通・年間)」欄の内容を表示しますが、上部のチェックボックスで「学校行事等(共通・月間のみ)も含める」「学校行事等(教員のみ・月間のみ)も含める」「職員会議のあった日を含める」をそれぞれ個別にオン・オフできます(既定値: 教員用は共通・月間のみ、教員のみ・月間のみをオン、家庭用は共通・月間のみだけオン)。教員向けの内容はオレンジ、職員会議は青字で「職員会議」とだけ表示されます(会議の詳細な内容や企画会議・出張などは年間予定表には表示されません)。「学校行事等(教員のみ・年間)」欄に入力した内容は、この設定に関わらず教員用の年間予定表にのみ常に表示されます(月間予定表には表示されません。「学校行事等(教員のみ・月間のみ)」と違って年間だけに載せたい内容専用の欄です)。各月の下部には元のExcelと同様に「年計」「学期計」「月計」として学年別の授業日数を表示します。学期の区切り(2学期・3学期の開始月)は「設定」タブで変更できます。「Excelに出力」ボタンで、A3横1ページに収まる形でその時点のチェック設定のまま年間分をまとめてダウンロードできます(元のExcelと同じくA3サイズ)。</p>
+  <p>「年間予定表」タブでは、上部の「教員用」「家庭用」ボタンで表示を切り替えられます。どちらも基本は、予定入力で「年間」にチェックした行事を表示しますが、上部のチェックボックスで「「月間」だけにチェックした行事も載せる」「「教員のみ」で「月間」にチェックした行事も載せる」「職員会議のあった日を含める」をそれぞれ個別にオン・オフできます(既定値: 教員用は両方の行事をオン、家庭用は「月間」だけの行事だけオン)。教員向けの内容はオレンジ、職員会議は青字で「職員会議」とだけ表示されます(会議の詳細な内容や企画会議・出張などは年間予定表には表示されません)。予定入力で「教員のみ」と「年間」にチェックした行事は、この設定に関わらず教員用の年間予定表に常に表示されます(「月間」のチェックを外せば、月間予定表には載らず年間だけになります)。各月の下部には元のExcelと同様に「年計」「学期計」「月計」として学年別の授業日数を表示します。学期の区切り(2学期・3学期の開始月)は「設定」タブで変更できます。「Excelに出力」ボタンで、A3横1ページに収まる形でその時点のチェック設定のまま年間分をまとめてダウンロードできます(元のExcelと同じくA3サイズ)。</p>
   <p style="font-size:12px;color:var(--ink-soft);">※PDF保存・印刷ボタンは、最終的な確認・配布をExcel出力ベースで行う運用のため、現在は非表示にしています。</p>
 
   <h4>給食の確認</h4>
