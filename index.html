@@ -213,6 +213,11 @@
   .ev-where{color:var(--ink-soft);font-size:11.5px;}
   .ev-flags .ev-item-cand{margin-left:auto;}
   .ev-swatch{font-size:12px;}
+  .ev-periods{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:3px;font-size:11.5px;color:var(--ink-soft);padding-left:18px;}
+  .ev-periods span{margin-right:4px;}
+  .ev-period-btn{border:1px solid var(--line);background:#fff;border-radius:4px;font-size:13px;line-height:1;padding:3px 5px;cursor:pointer;color:var(--ink-soft);font-family:inherit;}
+  .ev-period-btn.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .ev-period-btn:disabled{cursor:default;opacity:.6;}
   .ev-note{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
   .ev-msg{font-size:12px;color:var(--warn);}
   .ev-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;margin:10px 0 0;padding-top:8px;border-top:1px dashed var(--line);}
@@ -912,7 +917,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-27 17:00';
+const APP_VERSION = '2026-10-27 18:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -4382,7 +4387,7 @@ function renderHomeroomListPanel(year, month){
       arr.forEach((v,i)=>{ const c = String(v||'').trim(); if(at[c]) at[c].push(i); });
       if(!at.道.length && !at.学.length && !at.総.length) continue;
       HR_LIST_CODES.forEach(([c])=>{ total[c] += at[c].length; });
-      const parts = buildAnnualEventParts(rec, {includeMonthly:true, includeTeacherOnly:true, includeMeeting:false}, getDayStatus(y,m,d), 'teacher');
+      const parts = buildAnnualEventParts(rec, {includeMonthly:true, includeTeacherOnly:true, includeMeeting:false, keepPeriods:true}, getDayStatus(y,m,d), 'teacher');
       const ev = parts.map(p=>escapeHtml(p.text)).join('<br>');
       rows += `<tr><td style="white-space:nowrap;">${m}/${d}(${wd[new Date(y,m-1,d).getDay()]})</td>`
         + HR_LIST_CODES.map(([c])=>`<td>${at[c].map(i=>'①②③④⑤⑥'[i]).join('')}</td>`).join('')
@@ -4552,7 +4557,19 @@ function buildAnnualEventParts(rec, opts, status, audience){
   if(opts.includeMeeting && rec.staffMeeting){
     parts.push({text:'職員会議', cls:'meeting'});
   }
-  return parts;
+  // 行事名の頭の①〜⑥(何時間目の行事か)は月間予定表のためのものなので、年間予定表では出さない(2026-10-27)。
+  // 時数・集計タブの一覧など、時限も見たいところでは opts.keepPeriods を付けて呼ぶ。
+  if(!opts.keepPeriods) parts.forEach(p=>{ if(p.cls!=='meeting') p.text = stripPeriodPrefixes(p.text); });
+  return parts.filter(p=>p.text);
+}
+// 「①②始業式　③避難訓練」→「始業式　避難訓練」。行事(全角スペース区切り)ごとに、頭の①〜⑥だけを消す。
+// 行事名の途中の丸数字(例:「準備出勤①」)は消さない。丸数字だけの行事は、そのまま残す。
+const PERIOD_MARKS = '①②③④⑤⑥';
+function stripPeriodPrefixes(text){
+  return String(text||'').split('　').map(t=>{
+    const s = t.replace(/^[①②③④⑤⑥]+\s*/, '');
+    return s || t;
+  }).join('　');
 }
 function annualEventHtml(rec, opts, status, audience){
   return buildAnnualEventParts(rec, opts, status, audience).map(p=>{
@@ -5114,6 +5131,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-27</strong>: 学校行事等に「何時間目の行事か」を付けられるようにしました。予定入力の右側の入力欄で、行事ごとの①〜⑥のボタンを押すと、行事名の頭に「①②始業式」のように付きます。月間予定表にはそのまま出て、年間予定表(画面・Excel)では頭の①〜⑥だけを消して「始業式」と出します。</li>
     <li><strong>2026-10-27</strong>: 予定入力の学校行事等の見分け方を変更。文字の色で「だれ向けか」(黒=全体、緑=教員のみ)、薄い黄色の囲みで「年間予定表にも載るか」を表します(以前は、年間かどうかを太字で表していたため、教員のみの行事で年間と月間の違いが分かりにくかった)。表で選んでいる日の行は、黄色とまぎれないよう薄い青にしました。</li>
     <li><strong>2026-10-27</strong>: 「年間予定表」タブのチェックの名前を、予定入力のチェックに合わせて「「月間」だけにチェックした行事も載せる」「「教員のみ」で「月間」にチェックした行事も載せる」に変更(働きは同じです)。予定入力で範囲を選んでコピーしたとき、最初にクリックしたマス(給食・放課後・①〜⑥・週番など候補が出る欄)だけ空でコピーされることがあった問題を直しました。</li>
     <li><strong>2026-10-27</strong>: 「予定入力」の学校行事等を、4つの欄から1つの欄にまとめました。マスをクリックすると、画面の右側にその日の行事の一覧が出て、そこで入力します(別の窓は開きません。◀▶で前の日・次の日に移れます)。行事ごとに「年間」(年間と月間に載る)・「月間」(月間だけ)・「教員のみ」(教員用だけ)のチェックで載せる先を決めます。表のマスでは色で見分けられます(青=年間、黒=月間のみ、緑=教員のみ。太字は年間にも載るもの)。月間予定表・年間予定表などの表示は変わりません。</li>
@@ -5238,6 +5256,7 @@ document.getElementById('helpBody').innerHTML = `
     <li>「企画会議」「職員会議」はチェックボックスで入れられます。チェックすると、教員用の会議・出張・研修欄に自動的に「企画会議」「職員会議」の文字が追加されます(自由入力の内容と合わせて表示されます)。</li>
     <li>「掃除」もチェックボックスです。何もしなければ平日は「あり」、土曜・日曜・祝日は「なし」に自動でなります。手動でチェックを変更した場合はその状態が優先されます。月間予定表(教員用・家庭用)には「掃除」欄があり、いずれかの学年が登校日で、かつ「なし」の日だけ×が表示されます(それ以外は空欄。全学年とも登校日でない日は、掃除の有無にかかわらず空欄になります)。</li>
     <li>「放課後」欄も、空欄のまま=「活動あり」として扱われます。活動がない日や、再登校の時刻など特記事項がある日だけ「×」「再登校15:00〜」のように入力してください。従来通り自由な文章の入力もできます。</li>
+    <li>何時間目の行事かを月間予定表に出したいときは、右側のパネルで、その行事の「時限(月間だけに表示)」の①〜⑥を押します。行事名の頭に「①②始業式」のように付き、月間予定表にはそのまま、年間予定表(画面・Excel)では頭の①〜⑥を除いて「始業式」と出ます(もう一度押すと外れます。行事名に直接「①②」と打ち込んでも同じです。行事名の途中の丸数字は消えません)。</li>
     <li>右側のパネルでは、「＋ 行事を足す」で行事を増やし、✕で消せます。入力やチェックを変えると、すぐに保存の対象になります(すぐなら Ctrl+Z で元に戻せます)。「候補から選ぶ」で、日程が決まっていない行事などをあらかじめ候補にしておき、日程が決まったら「選択」でその日に入れられます(「月間」の行事として入るので、必要ならチェックを変えてください)。行事の「候補に追加」で候補に登録できます。候補は削除するまで残り、複数の日で繰り返し使えます(一度選んだ候補は既定では一覧から隠れますが、「使用済みを隠す」のチェックを外せば薄い表示で確認でき、使用回数も分かります)。</li>
     <li>「設定」タブの年度の下にある「(前年度)の行事を候補に追加」ボタンを押すと、前年度分の学校行事等(年間・月間・教員のみのすべて)に入力済みの内容をまとめて候補に登録できます。年度を切り替えて新しい年度の予定を組む際に便利です(既にある候補と同じ内容は追加されません)。祝日(国民の祝日)の日は対象外です。1つの欄に複数の行事が全角スペース区切りで入っている場合(例:「朝礼　一斉委員会」)は、項目ごとに別々の候補として登録されます。</li>
     <li>列の並びは元のExcel(4月職・4月生シート)を基本にしつつ、上記の欄を追加しています。「給食」の右にある「登校日」列は、学年ごとに登校日かどうかを判定するためのチェックボックスです(このアプリで追加した列です)。</li>
@@ -5415,6 +5434,16 @@ function writeEventItems(dateKey, items){
 }
 // 予定入力の表のマスで、行事の種類を見分けるためのクラス(CSS の .ev-m=全体・.ev-t=教員のみ の文字色と、.ev-y=年間にも載る の黄色の囲み)
 function eventItemClass(it){ return (it.teacher ? 'ev-t' : 'ev-m') + (it.annual ? ' ev-y' : ''); }
+// 行事名の頭の時限(①〜⑥)。「①②始業式」→「①②」
+function periodPrefixOf(text){ const m = String(text||'').match(/^[①②③④⑤⑥]+/); return m ? m[0] : ''; }
+// 時限のボタンを押したとき: 頭の時限に、その丸数字を足す/外す(①〜⑥の順に並べ直す)
+function togglePeriodPrefix(text, mark){
+  const t = String(text||'');
+  const pre = periodPrefixOf(t), rest = t.slice(pre.length).replace(/^\s+/, '');
+  const set = new Set(pre);
+  if(set.has(mark)) set.delete(mark); else set.add(mark);
+  return [...PERIOD_MARKS].filter(x=>set.has(x)).join('') + rest;
+}
 function eventItemLabel(it){
   const where = it.annual && it.monthly ? '年間・月間' : it.annual ? '年間のみ' : '月間のみ';
   return (it.teacher ? '教員のみ・' : '') + where;
@@ -5528,6 +5557,10 @@ function renderEventPanel(){
         <span class="ev-where">→ ${escapeHtml(eventItemLabel(it))}</span>
         <button type="button" class="ghost tiny ev-item-cand" data-idx="${i}" ${dis}>候補に追加</button>
       </div>
+      <div class="ev-periods" title="押すと、行事名の頭に「①②」のような時限が付きます(もう一度押すと外れます)。月間予定表にだけ出て、年間予定表では出ません">
+        <span>時限(月間だけに表示):</span>
+        ${[...PERIOD_MARKS].map((mk,pi)=>`<button type="button" class="ev-period-btn ${periodPrefixOf(it.text).includes(mk)?'on':''}" data-idx="${i}" data-p="${pi}" ${dis}>${mk}</button>`).join('')}
+      </div>
     </div>`;
   });
   html += `<button type="button" class="ghost tiny" id="evAddItem" ${dis}>＋ 行事を足す</button> <span id="evPanelMsg" class="ev-msg"></span>`;
@@ -5551,6 +5584,13 @@ function renderEventPanel(){
   body.querySelectorAll('.ev-flag').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       setEventItemFlag(evPanelItems[Number(cb.dataset.idx)], cb.dataset.flag, cb.checked);
+      saveEventPanel(); renderEventPanel();
+    });
+  });
+  body.querySelectorAll('.ev-period-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = evPanelItems[Number(btn.dataset.idx)];
+      it.text = togglePeriodPrefix(it.text, PERIOD_MARKS[Number(btn.dataset.p)]);
       saveEventPanel(); renderEventPanel();
     });
   });
