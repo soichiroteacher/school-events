@@ -13,6 +13,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 **2026-09-27 の変更**: データファイルの拡張子を `.dat` から `.json` に変更(中身は以前と同じJSON。開くときは `.json` と `.dat` の両方を選べる。保存・新規作成・自動バックアップ・サンプル出力は `.json`)。保存時に改行と字下げを入れるようにした(`stateToText`。読み込みは以前の1行の形式もそのまま読める)。自動バックアップのファイル名は `行事予定_バックアップ_YYYY-MM-DD_HHMMSS.json`(共通ルールに合わせた。以前は `学校名_backup_YYYYMMDD_HHMMSS.dat`)。`サンプルデータ_1年分.dat` を `.json` に改名。README・CHANGELOG・CLAUDE.md・.gitignore を追加。
 
+**2026-10-27 の変更**: 予定入力の学校行事等を4欄から1欄＋右側のパネル(`#evPanel`)にまとめた。行事ごとに「年間」「月間」「教員のみ」のチェックで載せる先を決め、保存のときに4つの欄に読み替える(`eventItemsOf`・`writeEventItems`)。データの形とほかのタブの表示は変えていない。詳しくは TODO.md の32。
+
 **2026-10-26 の変更**: (1) 古い内容のまま表示・編集される問題を修正。原因は、「編集する」のときにファイルを読み直していたのが「編集中の印」の確認だけで、画面の内容(`state`)は開いたときのまま編集が始まり、自動保存でほかのパソコンの新しい内容を上書きしていたこと。また、開いたままのページは新しい内容に気づかず、保存の前の確認も無かった。`lastKnownModified`(最後に読み書きしたときのファイルの更新時刻)を持ち、①編集を始めるとき(`submitPasswordUnlock`)にファイルが新しければ読み直す、②閲覧中は画面に戻ったとき・1分おきに確かめて読み直す(`refreshIfChangedOnDisk`)、③保存の前(`writeToHandle`)にほかで保存されていれば確認を出し、キャンセルなら `saveConflict` で自動保存を止める、④バックアップのファイル(名前に「バックアップ」「backup」)を開いたらお知らせ(`afterOpenFile`。「開く」で一度バックアップを選ぶと、次からそれが前回のファイルとして自動で開くため)。仕組みは `../exam-manager` の `writeFile` と同じ考え方。(2) 「時数・集計」タブに「道徳・学活・総合の一覧」(`renderHomeroomListPanel`)を追加。学年(`hrListGrade`)と期間(`hrListRange`)を選ぶと、①〜⑥に「道」「学」「総」がある日を1行ずつ、時限と、その日の行事(`buildAnnualEventParts` で教員用すべて: 年間・月間・教員のみ・教員のみ年間)を出す。数え方は「授業日課の内訳」と同じ(合計が一致することを確かめた)。
 
 ## 現在の状況と次にやること(2026-09-26時点・まずここを読む)
@@ -147,7 +149,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 | 入力グリッド描画 | `renderAgenda`, `attachGridHandlers`, `COLS`定義, `getFieldValue`/`setFieldValue` |
 | 複数セル選択・コピペ | `paintSelection`, `selectionBounds`, `document.addEventListener('paste'/'keydown')` |
 | メモの複数行モーダル | `openMemoModal`/`closeMemoModal` |
-| 行事候補プール・複数枠入力モーダル | `openEventPickerModal`, `renderEventPickerBoxes`, `eventPickerBoxValues`, `renderEventCandidateList`, `importPreviousYearEventsToCandidates` |
+| 学校行事等の入力パネル(予定入力の右側)・候補 | `openEventPanel`, `renderEventPanel`, `saveEventPanel`, `setEventItemFlag`, `eventItemsOf`(4欄→行事ごと), `writeEventItems`(行事ごと→4欄), `renderEventPanelCandidates`, `importPreviousYearEventsToCandidates` |
 | 週番まとめて入力(週単位/月ローテーション) | `openWeeklyDutyModal`, `getWeeksForMonth`, `applyWeeklyDutyToWeek`, `renderWeeklyDutyMonthPreview` |
 | 月間予定表プレビュー(教員用/家庭用) | `renderMonthlyPreview`, `PV_COLS_TEACHER`, `PV_COLS_FAMILY` |
 | 年間予定表(教員用/家庭用、表示内容選択可) | `renderAnnualPreview`, `buildAnnualEventParts`, `annualEventHtml/Text` |

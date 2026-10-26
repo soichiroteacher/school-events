@@ -194,6 +194,27 @@
     font-size:12.5px;color:#b3bac1;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .field-btn{font-size:11px;} /* 学校行事等の欄は内容が増えると読みにくくなるため、列幅は変えずフォントを少し小さくする */
+  /* 学校行事等(1欄)の色。青=年間(年間と月間に載る)・黒=月間のみ・緑=教員のみ。年間にも載るものは太字(2026-10-27) */
+  .ev-a{color:#1f4e9e;} .ev-m{color:var(--ink);} .ev-t{color:#2e7d32;} .ev-strong{font-weight:700;}
+  .field-btn.ev-cell-btn{font-size:11.5px;}
+  tr.ev-selected-row td.cell, tr.ev-selected-row td.fixed, tr.ev-selected-row td.fixed2{background:#fff1c9 !important;}
+  .ev-panel{position:fixed;right:12px;bottom:12px;width:400px;max-width:calc(100vw - 24px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:70;display:flex;flex-direction:column;}
+  .ev-panel[hidden]{display:none;}
+  body.ev-panel-open #mainSchedule{margin-right:424px;}
+  .ev-panel-head{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);}
+  .ev-panel-head h3{margin:0;font-size:14.5px;}
+  .ev-panel-body{overflow-y:auto;padding:10px 12px;flex:1;}
+  .ev-item{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:6px;}
+  .ev-item .ev-item-text{flex:1;min-width:0;font-size:13.5px;padding:5px 7px;font-family:inherit;}
+  .ev-flags{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12.5px;padding-left:18px;}
+  .ev-flags label{display:flex;align-items:center;gap:3px;cursor:pointer;}
+  .ev-where{color:var(--ink-soft);font-size:11.5px;}
+  .ev-flags .ev-item-cand{margin-left:auto;}
+  .ev-swatch{font-size:12px;}
+  .ev-note{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
+  .ev-msg{font-size:12px;color:var(--warn);}
+  .ev-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;margin:10px 0 0;padding-top:8px;border-top:1px dashed var(--line);}
+  .ev-sub{margin:14px 0 4px;font-size:13px;color:var(--accent);}
   .memo-btn.has-memo, .field-btn.has-content{color:var(--ink);}
   .memo-btn:hover, .field-btn:hover{background:var(--accent-soft);}
   .memo-btn:disabled, .field-btn:disabled{cursor:default;color:#ccc;}
@@ -583,7 +604,7 @@
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
         国民の祝日・振替休日は年度の開始/終了西暦から自動計算されます(下の一覧は自動計算の結果の確認用です)。
         土曜授業や開校記念日などで特定の学年だけ登校日/休業日を変えたい場合は、「予定入力」タブの「登校日」列(学年ごとのチェックボックス)で切り替えてください。
-        休みや特別な登校日の理由を書き残したい場合は「学校行事等(共通・年間)」または「学校行事等(共通・月間のみ)」欄に入力してください。
+        休みや特別な登校日の理由を書き残したい場合は、「予定入力」タブの「学校行事等」欄に入力してください。
       </p>
       <div class="holiday-list" id="holidayList"></div>
     </div>
@@ -830,35 +851,17 @@
   </div>
 </div>
 
-<div class="overlay" id="eventPickerOverlay">
-  <div class="modal" style="max-width:560px;">
-    <div class="modal-head">
-      <h3 id="eventPickerTitle">学校行事等の入力</h3>
-      <button class="ghost" id="eventPickerClose">✕ 閉じる</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 6px;">複数の行事をそれぞれ別の枠に入力し、あとで1つにまとめて保存できます。</p>
-      <div id="eventPickerBoxes"></div>
-      <button type="button" class="ghost tiny" id="eventPickerAddBox">＋ 枠を追加</button>
-      <div class="field-row" style="margin-top:6px;">
-        <span id="eventPickerAddMsg" style="font-size:12px;color:var(--warn);"></span>
-      </div>
-      <h4 style="margin:16px 0 4px;font-size:13px;color:var(--accent);">候補から選ぶ</h4>
-      <p style="font-size:12px;color:var(--ink-soft);margin:0 0 8px;">日程が決まっていない行事などを候補として一次保存しておき、日程が決まったらここから選べます。選ぶと、空いている枠(無ければ新しい枠)に反映されます(反映後は「保存して閉じる」を押してください)。一度選んだ候補は、既定では一覧から自動的に隠れます。「使用済みを隠す」のチェックを外すと、使用済みの候補も薄く表示されて確認できます。「一斉委員会」のように何度も使う候補は、行の「くり返し使う」にチェックを入れておくと、使用済みでも一覧から隠れなくなります。</p>
-      <div class="field-row" style="margin-bottom:6px;gap:10px;">
-        <input type="text" id="eventPickerCandSearch" placeholder="候補を検索" style="flex:1;font-size:13px;padding:5px 7px;box-sizing:border-box;font-family:inherit;">
-        <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;white-space:nowrap;">
-          <input type="checkbox" id="eventPickerHideUsed">使用済みを隠す
-        </label>
-      </div>
-      <div class="holiday-list" id="eventPickerCandidateList" style="max-height:220px;"></div>
-    </div>
-    <div class="modal-foot">
-      <button id="eventPickerCancel">キャンセル</button>
-      <button class="primary" id="eventPickerSave">保存して閉じる</button>
-    </div>
+<!-- 学校行事等の入力パネル(予定入力タブの右側。中身は renderEventPanel で作る。2026-10-27 に入力の窓から置き換え) -->
+<aside id="evPanel" class="ev-panel" hidden>
+  <div class="ev-panel-head">
+    <button type="button" class="ghost tiny" id="evPanelPrev" title="前の日">◀</button>
+    <h3 id="evPanelTitle">学校行事等</h3>
+    <button type="button" class="ghost tiny" id="evPanelNext" title="次の日">▶</button>
+    <span style="flex:1"></span>
+    <button type="button" class="ghost tiny" id="evPanelClose">✕ 閉じる</button>
   </div>
-</div>
+  <div class="ev-panel-body" id="evPanelBody"></div>
+</aside>
 
 <div class="overlay" id="pwOverlay">
   <div class="modal" style="max-width:380px;">
@@ -907,7 +910,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-26 12:00';
+const APP_VERSION = '2026-10-27 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -2310,6 +2313,7 @@ async function tryAutoLoadLastFile(){
 let monthlyAudience = 'teacher';
 let annualAudience = 'teacher';
 function showView(view){
+  if(view!=='schedule' && evPanelKey) closeEventPanel(); // 学校行事等のパネルは予定入力タブでだけ使う
   document.getElementById('mainSchedule').style.display = view==='schedule' ? '' : 'none';
   document.getElementById('mainPreviewTeacher').style.display = view==='preview-teacher' ? '' : 'none';
   document.getElementById('mainPreviewFamily').style.display = view==='preview-family' ? '' : 'none';
@@ -2370,10 +2374,8 @@ function buildCOLS(){
   const spName = (state.meta && state.meta.supportClassName) || '5組';
   const spOn = !!(state.meta && state.meta.supportClassEnabled);
   const cols = [
-    {key:'eventsAnnual', label:'学校行事等(共通・年間)', w:190, hint:'年間予定表にも掲載されます'},
-    {key:'eventsMonthly', label:'学校行事等(共通・月間のみ)', w:190, hint:'月の予定表のみに掲載されます'},
-    {key:'eventsTeacherOnlyAnnual', label:'学校行事等(教員のみ・年間)', w:170, hint:'年間予定表(教員用)にのみ掲載されます(月間予定表には表示されません)'},
-    {key:'eventsTeacherOnly', label:'学校行事等(教員のみ・月間のみ)', w:170, hint:'月間予定表(教員用)に掲載されます。年間予定表への表示は「年間予定表」タブ(教員用)の設定でオン/オフできます'},
+    // 学校行事等は1欄にまとめ、クリックすると右側のパネルで入力する(2026-10-27。以前は4欄。TODO.md 32)
+    {key:'events', label:'学校行事等', w:300, hint:'クリックすると、右側にその日の行事の入力欄が出ます。色: 青=年間(年間と月間に載る)・黒=月間のみ・緑=教員のみ(太字は年間にも載る)'},
     {key:'meeting', label:'会議・出張・研修', w:110},
     {key:'planningMeeting', label:'企画会議', w:30, type:'checkbox', vertical:true},
     {key:'staffMeeting', label:'職員会議', w:30, type:'checkbox', vertical:true},
@@ -2589,10 +2591,13 @@ function renderAgenda(){
         html += `<td class="cell ${memoCls} ${gsCls}" data-row="${d-1}" data-col="${colIdx}">`+
           `<button type="button" class="memo-btn ${val?'has-memo':''}" data-key="${key}" data-field="memo" data-daylabel="${escapeHtml(String(d))}日(${DOW[dow]})">${preview || '＋メモ'}</button>`+
           `</td>`;
-      } else if(c.key==='eventsAnnual' || c.key==='eventsMonthly' || c.key==='eventsTeacherOnly' || c.key==='eventsTeacherOnlyAnnual'){
-        const evPreview = val ? escapeHtml(val.split('\n')[0]).slice(0,60) + (val.length>60||val.includes('\n') ? '…' : '') : '';
+      } else if(c.key==='events'){
+        // 行事ごとに色を変えて並べる(見るだけのときもクリックでパネルを開けるよう、disabled にはしない)
+        const items = eventItemsOf(rec, status);
+        const inner = items.map(it=>`<span class="${eventItemClass(it)}">${escapeHtml(it.text)}</span>`).join('　');
+        const tip = items.map(it=>`${it.text}(${eventItemLabel(it)})`).join('\n');
         html += `<td class="cell ${gsCls}" data-row="${d-1}" data-col="${colIdx}">`+
-          `<button type="button" class="field-btn ${val?'has-content':''}" ${dis} data-key="${key}" data-field="${c.key}" data-fieldlabel="${escapeHtml(c.label)}" data-daylabel="${escapeHtml(String(d))}日(${DOW[dow]})">${evPreview || '＋入力'}</button>`+
+          `<button type="button" class="field-btn ev-cell-btn ${items.length?'has-content':''}" data-key="${key}" data-field="events" title="${escapeHtml(tip)}">${inner || (editUnlocked?'＋入力':'')}</button>`+
           `</td>`;
       } else if(c.key==='weeklyDuty'){
         html += `<td class="cell ${gsCls}" data-row="${d-1}" data-col="${colIdx}">`+
@@ -2616,6 +2621,7 @@ function renderAgenda(){
 
   attachGridHandlers();
   syncTopScroll();
+  syncEventPanelAfterRender();
 }
 function syncTopScroll(){
   const wrap = document.getElementById('gridWrap');
@@ -2690,8 +2696,7 @@ function attachGridHandlers(){
   table.querySelectorAll('.field-btn').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
-      if(!editUnlocked){ openPasswordModal(); return; }
-      openEventPickerModal(btn.dataset.key, btn.dataset.field, btn.dataset.fieldlabel, btn.dataset.daylabel);
+      openEventPanel(btn.dataset.key);
     });
   });
 
@@ -4531,7 +4536,13 @@ function buildAnnualEventParts(rec, opts, status, audience){
   if(opts.includeMonthly && rec.eventsMonthly) parts.push({text:rec.eventsMonthly, cls:null});
   if(opts.includeTeacherOnly && rec.eventsTeacherOnly) parts.push({text:rec.eventsTeacherOnly, cls:'teacheronly'});
   // 「学校行事等(教員のみ・年間)」は月間には出さず、年間予定表(教員用)にのみ常に表示する
-  if(audience==='teacher' && rec.eventsTeacherOnlyAnnual) parts.push({text:rec.eventsTeacherOnlyAnnual, cls:'teacheronly'});
+  if(audience==='teacher' && rec.eventsTeacherOnlyAnnual){
+    // 予定入力で「教員のみ」を年間と月間の両方にした行事は、2つの欄に同じ名前で入っている。
+    // 上で「教員のみ・月間」を出しているときは、同じ行事を2回出さない(2026-10-27)
+    const shown = (opts.includeTeacherOnly && rec.eventsTeacherOnly) ? splitEventText(rec.eventsTeacherOnly) : [];
+    const rest = splitEventText(rec.eventsTeacherOnlyAnnual).filter(t=>!shown.includes(t)).join('　');
+    if(rest) parts.push({text:rest, cls:'teacheronly'});
+  }
   if(opts.includeMeeting && rec.staffMeeting){
     parts.push({text:'職員会議', cls:'meeting'});
   }
@@ -4894,6 +4905,8 @@ document.getElementById('btnNextMonthFamily').addEventListener('click', ()=> ste
 // 予定入力タブへ切り替えて、指定した日(・欄)を表示してフォーカスする。
 // 祝日一覧の「この日を開く」や、検索結果のジャンプで共通して使う。
 function jumpToDay(y, m, d, focusField){
+  // 学校行事等の4欄は、予定入力では1欄(events)にまとめてあるので、そこへ飛んで右側のパネルを開く
+  if(['eventsAnnual','eventsMonthly','eventsTeacherOnly','eventsTeacherOnlyAnnual'].includes(focusField)) focusField = 'events';
   document.querySelectorAll('nav.tabs .tab').forEach(b=>b.classList.remove('active'));
   document.querySelector('nav.tabs .tab[data-tab=schedule]').classList.add('active');
   document.getElementById('mainSchedule').style.display='';
@@ -4915,6 +4928,7 @@ function jumpToDay(y, m, d, focusField){
       ? document.querySelector(`[data-key="${key}"][data-field="${focusField}"]`)
       : document.querySelector(`input[data-row="${d-1}"][data-field="g1SchoolDay"]`);
     if(el){ el.scrollIntoView({block:'center', inline:'center'}); if(el.focus) el.focus(); }
+    if(focusField==='events') openEventPanel(key);
   }, 30);
 }
 
@@ -5093,6 +5107,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-27</strong>: 「予定入力」の学校行事等を、4つの欄から1つの欄にまとめました。マスをクリックすると、画面の右側にその日の行事の一覧が出て、そこで入力します(別の窓は開きません。◀▶で前の日・次の日に移れます)。行事ごとに「年間」(年間と月間に載る)・「月間」(月間だけ)・「教員のみ」(教員用だけ)のチェックで載せる先を決めます。表のマスでは色で見分けられます(青=年間、黒=月間のみ、緑=教員のみ。太字は年間にも載るもの)。月間予定表・年間予定表などの表示は変わりません。</li>
     <li><strong>2026-10-26</strong>: ほかのパソコンで保存された新しい内容があるのに、古い内容のまま表示・編集されることがあった問題を直しました。「編集する」を押したときは最新の内容を読み直してから編集を始めます。見ているだけのときも、画面に戻ったときや1分おきに確かめて、新しくなっていれば読み直します。保存の前に、ほかで保存されていないかを確かめます(保存されていたら確認を出します)。バックアップのファイルを開いたときは、お知らせを出します。「時数・集計」タブに「道徳・学活・総合の一覧」を追加しました(学年・期間を選ぶと、①〜⑥に「道」「学」「総」がある日と、その日の行事を一覧にします)。</li>
     <li><strong>2026-09-27</strong>: データファイルの形式名を「.dat」から「.json」に変更(中身は同じです)。これまでの .dat ファイルもそのまま開けて、上書き保存もできます。.json にそろえたいときは、一度「名前を付けて保存」で保存し直してください。あわせて、データファイルをメモ帳などで開いても読みやすいよう改行を入れて保存するようにし、自動バックアップのファイル名を「行事予定_バックアップ_日付_時刻.json」に変更しました。</li>
     <li><strong>2026-09-26</strong>: 「時数・集計」タブに「授業日数・授業週数」を追加。学年ごとに、4月〜3月・学期ごと・年間の授業日数と、授業週数(登校日のある週の数/授業日数÷5の換算値)を表示。</li>
@@ -5208,14 +5223,14 @@ document.getElementById('helpBody').innerHTML = `
     <li>列見出しの右端をドラッグすると列の幅を変えられます(画面に入りきらない場合に調整してください)。「設定」タブの「列幅をリセット」で既定の幅に戻せます。</li>
     <li>「週番をまとめて入力」ボタンから、現在表示中の月にかかる週を一覧から選び、内容を入力すると、その週の月〜金(休業日を除く)にまとめて同じ週番を入力できます。入力候補は「設定」タブの入力候補編集と共通です。どの日に反映されるかは画面上で確認してから適用できます。「月全体に順番で割り当て」を選ぶと、「1年、2年、3年」のように読点区切りで指定した内容を、今月の各週に順番(足りなくなったら最初に戻る)で一括入力できます。なお、予定入力のマス自体は常に1日ずつ分かれています(結合されるのは「月間予定表(教員用)」の画面表示とExcel出力のみです)。</li>
     <li>月選択の右にある「登校日へまとめて入力」ボタンから、現在表示中の月で、いずれかの学年の「登校日」にチェックが入っている日に、授業(①〜⑥)・掃除・給食をまとめて入力できます。対象になる日数はボタンを押すと表示されるので、確認してから項目を選んで適用してください。授業の内容は曜日ごと(月〜日)に別々に指定でき、初期値は月:道2345、火:123456、水:12345、木:12345総、金:12345です(土・日は初期値なし)。空欄にした欄はその曜日には入力されません。授業は登校する学年の欄にのみ、かつ既に何か入力済みのマスは変更せず空欄だけに入力します。掃除・給食は対象の日・学年に一律で「あり」を設定します。</li>
-    <li>予定入力タブの月選択の右にある検索欄に文字を入力すると、「体育祭」のように入力した文字を含む行事等・会議・放課後・週番・メモを、年度内のすべての月から探して一覧表示します。結果をクリックするとその日・その欄までジャンプします。</li>
+    <li>予定入力タブの月選択の右にある検索欄に文字を入力すると、「体育祭」のように入力した文字を含む行事等・会議・放課後・週番・メモを、年度内のすべての月から探して一覧表示します。結果をクリックするとその日・その欄までジャンプします(学校行事等のときは、右側にその日の行事のパネルが開きます)。</li>
     <li>放課後・給食・授業日課・週番の入力候補(クリックした時に出る候補)は「設定」タブの「入力候補(プリセット)の編集」から自由に変更できます。</li>
-    <li>学校行事等は4つの欄に分かれています。「共通・年間」(年間予定表にも掲載予定、太字の緑で表示)、「共通・月間のみ」(月の予定表のみに掲載)、「教員のみ・年間」(教員用の年間予定表にのみ掲載)、「教員のみ・月間のみ」(教員用にのみ掲載、オレンジで表示)。載せたい範囲に応じて入力する欄を選んでください。</li>
+    <li>学校行事等は1つの欄にまとめてあります(2026-10-27 から)。マスをクリックすると、画面の右側にその日の行事の一覧が出ます。行事ごとに、どの予定表に載せるかをチェックで決めます。「年間」=年間予定表と月間予定表の両方に載る、「月間」=月間予定表にだけ載る、「教員のみ」=チェックと合わせて、教員用の年間・月間(またはその両方)にだけ載る(家庭用には載らない)。表のマスでは色で見分けられます: 青=年間、黒=月間のみ、緑=教員のみ(太字は年間にも載るもの)。パネルの「◀」「▶」で前の日・次の日に移れます。データの中では以前と同じ4つの区分(共通・年間/共通・月間のみ/教員のみ・年間/教員のみ・月間のみ)で保存しているので、月間予定表・年間予定表などの表示は変わりません。</li>
     <li>「企画会議」「職員会議」はチェックボックスで入れられます。チェックすると、教員用の会議・出張・研修欄に自動的に「企画会議」「職員会議」の文字が追加されます(自由入力の内容と合わせて表示されます)。</li>
     <li>「掃除」もチェックボックスです。何もしなければ平日は「あり」、土曜・日曜・祝日は「なし」に自動でなります。手動でチェックを変更した場合はその状態が優先されます。月間予定表(教員用・家庭用)には「掃除」欄があり、いずれかの学年が登校日で、かつ「なし」の日だけ×が表示されます(それ以外は空欄。全学年とも登校日でない日は、掃除の有無にかかわらず空欄になります)。</li>
     <li>「放課後」欄も、空欄のまま=「活動あり」として扱われます。活動がない日や、再登校の時刻など特記事項がある日だけ「×」「再登校15:00〜」のように入力してください。従来通り自由な文章の入力もできます。</li>
-    <li>「学校行事等(共通・年間/共通・月間のみ/教員のみ・年間/教員のみ・月間のみ)」欄はクリックすると入力用のウィンドウが開きます。枠は最初1つですが「＋ 枠を追加」で増やせるので、複数の行事をそれぞれ別の枠に入力してから、保存時に1つにまとめられます。「候補から選ぶ」で日程が決まっていない行事などをあらかじめ「候補に追加」しておき、日程が決まったら選んで(空いている枠、無ければ新しい枠に)反映できます。候補は削除するまで残り、複数の日で繰り返し使えます(一度選んだ候補は既定では一覧から隠れますが、「使用済みを隠す」のチェックを外せば薄い表示で確認でき、使用回数も分かります)。</li>
-    <li>「設定」タブの年度の下にある「(前年度)の行事を候補に追加」ボタンを押すと、前年度分の学校行事等(共通・年間/共通・月間のみ/教員のみ・年間/教員のみ・月間のみの4欄すべて)に入力済みの内容をまとめて候補に登録できます。年度を切り替えて新しい年度の予定を組む際に便利です(既にある候補と同じ内容は追加されません)。祝日(国民の祝日)の日は対象外です。1つの欄に複数の行事が全角スペース区切りで入っている場合(例:「朝礼　一斉委員会」)は、項目ごとに別々の候補として登録されます。</li>
+    <li>右側のパネルでは、「＋ 行事を足す」で行事を増やし、✕で消せます。入力やチェックを変えると、すぐに保存の対象になります(すぐなら Ctrl+Z で元に戻せます)。「候補から選ぶ」で、日程が決まっていない行事などをあらかじめ候補にしておき、日程が決まったら「選択」でその日に入れられます(「月間」の行事として入るので、必要ならチェックを変えてください)。行事の「候補に追加」で候補に登録できます。候補は削除するまで残り、複数の日で繰り返し使えます(一度選んだ候補は既定では一覧から隠れますが、「使用済みを隠す」のチェックを外せば薄い表示で確認でき、使用回数も分かります)。</li>
+    <li>「設定」タブの年度の下にある「(前年度)の行事を候補に追加」ボタンを押すと、前年度分の学校行事等(年間・月間・教員のみのすべて)に入力済みの内容をまとめて候補に登録できます。年度を切り替えて新しい年度の予定を組む際に便利です(既にある候補と同じ内容は追加されません)。祝日(国民の祝日)の日は対象外です。1つの欄に複数の行事が全角スペース区切りで入っている場合(例:「朝礼　一斉委員会」)は、項目ごとに別々の候補として登録されます。</li>
     <li>列の並びは元のExcel(4月職・4月生シート)を基本にしつつ、上記の欄を追加しています。「給食」の右にある「登校日」列は、学年ごとに登校日かどうかを判定するためのチェックボックスです(このアプリで追加した列です)。</li>
     <li>「給食」欄は自由入力です(○・×・弁の3パターンに対応するため、チェックボックスではなく「放課後」欄などと同じ自由入力+候補選択の方式にしています)。クリックすると出る候補から選ぶか、直接入力してください。候補の内容は「設定」タブの「入力候補(プリセット)の編集」から変更できます。</li>
     <li>「登校日」のチェックは、平日は自動でオン、土日・祝日は自動でオフになっています。実際と異なる場合(土曜授業を行う、逆に平日を休業日にするなど)は、その学年のチェックを直接つけ外ししてください。チェックを外すと、その学年の①〜⑥時限の欄は入力できなくなります。休みや特別な登校日の理由は「学校行事等(共通・年間)」などに書き添えてください。時数・集計タブの授業日数は、このチェックを元に計算されます。</li>
@@ -5344,169 +5359,271 @@ document.getElementById('memoSave').addEventListener('click', ()=>{
   renderAgenda();
 });
 
-//////////////////////// 学校行事等の入力(候補プール)モーダル ////////////////////////
-// 複数の行事をそれぞれ別の枠に入力し、保存時に1つのテキストへまとめる。
-let eventPickerKey = null, eventPickerField = null, eventPickerBoxValues = [''];
-let eventPickerUsedCandidateIds = new Set(); // このモーダルを開いている間に候補から選んだもの(保存時にまとめて使用回数を増やす)
-let eventPickerInitialSnapshot = ''; // 開いた時点の内容(未保存で閉じようとした時の確認に使用)
-let eventPickerHideUsed = true; // 「使用済みを隠す」チェックの状態(モーダルを開くたびにリセット。既定でON)
-let eventPickerCandSearch = ''; // 候補検索欄の入力内容(モーダルを開くたびにリセット)
-function openEventPickerModal(key, field, fieldLabel, dayLabel){
-  eventPickerKey = key;
-  eventPickerField = field;
-  eventPickerUsedCandidateIds = new Set();
-  const rec = migrateDayRecord(state.days[key]);
-  document.getElementById('eventPickerTitle').textContent = `${fieldLabel} - ${dayLabel}`;
-  let initial = rec[field] || '';
-  if(field==='eventsAnnual' && !initial){
-    const [y,m,d] = key.split('-').map(Number);
-    initial = effectiveEventsAnnual(rec, getDayStatus(y,m,d));
+//////////////////////// 学校行事等の入力パネル(予定入力タブの右側) ////////////////////////
+// 2026-10-27: 以前は「共通・年間」「共通・月間のみ」「教員のみ・年間」「教員のみ・月間のみ」の4欄に分かれていて、
+// 横に長く、どの欄に入れるか迷い、マスごとに入力の窓が開いて使いづらかったため、予定入力では1欄にまとめ、
+// マスをクリックすると画面の右側にその日の行事の一覧を出して、行事ごとに「年間」「月間」「教員のみ」のチェックで
+// 載せる先を決める形にした(TODO.md 32)。
+// データの形(4つの欄)は変えていない。行事ごとのチェックを、保存するときに4つの欄へ読み替える(writeEventItems)。
+//   全体・年間(年間と月間に載る)    → eventsAnnual
+//   全体・月間のみ                  → eventsMonthly
+//   教員のみ・月間                  → eventsTeacherOnly
+//   教員のみ・年間                  → eventsTeacherOnlyAnnual
+//   (教員のみで年間と月間の両方なら、eventsTeacherOnly と eventsTeacherOnlyAnnual の両方に入れる)
+// 1つの欄の中の行事は、以前と同じく全角スペースで区切る。
+
+function splitEventText(s){ return String(s||'').split('　').map(x=>x.trim()).filter(Boolean); }
+// その日の行事を、行事ごとの { text, annual, monthly, teacher } の並びにする。
+// 年間の欄が空で祝日のときは、祝日名を「年間」の行事として出す(年間予定表などで自動で載るのと同じ。effectiveEventsAnnual)。
+function eventItemsOf(rec, status){
+  const items = [];
+  const annual = rec.eventsAnnual ? splitEventText(rec.eventsAnnual)
+    : (status && status.source==='national' && status.label ? [status.label] : []);
+  annual.forEach(t=>items.push({ text:t, annual:true, monthly:true, teacher:false }));
+  splitEventText(rec.eventsMonthly).forEach(t=>items.push({ text:t, annual:false, monthly:true, teacher:false }));
+  const taLeft = splitEventText(rec.eventsTeacherOnlyAnnual);
+  splitEventText(rec.eventsTeacherOnly).forEach(t=>{
+    const i = taLeft.indexOf(t);
+    if(i>=0){ taLeft.splice(i,1); items.push({ text:t, annual:true, monthly:true, teacher:true }); }
+    else items.push({ text:t, annual:false, monthly:true, teacher:true });
+  });
+  taLeft.forEach(t=>items.push({ text:t, annual:true, monthly:false, teacher:true }));
+  return items;
+}
+function writeEventItems(dateKey, items){
+  const f = { eventsAnnual:[], eventsMonthly:[], eventsTeacherOnly:[], eventsTeacherOnlyAnnual:[] };
+  items.forEach(it=>{
+    // 全角スペースは行事の区切りに使うので、行事の名前の中では半角スペースにする
+    const t = String(it.text||'').replace(/　/g,' ').trim();
+    if(!t) return;
+    if(!it.teacher){ (it.annual ? f.eventsAnnual : f.eventsMonthly).push(t); }
+    else {
+      if(it.monthly || !it.annual) f.eventsTeacherOnly.push(t);
+      if(it.annual) f.eventsTeacherOnlyAnnual.push(t);
+    }
+  });
+  Object.keys(f).forEach(k=>setFieldValue(dateKey, k, f[k].join('　')));
+}
+// 予定入力の表のマスで、行事の種類を色で見分けるためのクラス(色は CSS の .ev-a / .ev-m / .ev-t)
+function eventItemClass(it){ return (it.teacher ? 'ev-t' : it.annual ? 'ev-a' : 'ev-m') + (it.annual ? ' ev-strong' : ''); }
+function eventItemLabel(it){
+  const where = it.annual && it.monthly ? '年間・月間' : it.annual ? '年間のみ' : '月間のみ';
+  return (it.teacher ? '教員のみ・' : '') + where;
+}
+
+let evPanelKey = null;    // パネルで開いている日('YYYY-MM-DD')。閉じているときは null
+let evPanelItems = [];    // パネルで編集中の行事(並び順を保つため、パネルを開いている間はここを元にする)
+let evCandSearch = '';    // 候補の検索
+let evCandHideUsed = true; // 使用済みの候補を隠す(既定で隠す。2026-09-10 からの決まり)
+function evPanelDayLabel(key){
+  const [y,m,d] = key.split('-').map(Number);
+  return `${m}月${d}日(${DOW[new Date(y,m-1,d).getDay()]})`;
+}
+function openEventPanel(key){
+  if(evPanelKey!==key){ evCandSearch = ''; }
+  evPanelKey = key;
+  loadEventPanelItems();
+  document.body.classList.add('ev-panel-open');
+  placeEventPanel();
+  document.getElementById('evPanel').hidden = false;
+  renderEventPanel();
+  markEventPanelRow();
+}
+function loadEventPanelItems(){
+  const [y,m,d] = evPanelKey.split('-').map(Number);
+  evPanelItems = eventItemsOf(migrateDayRecord(state.days[evPanelKey]), getDayStatus(y,m,d));
+}
+function closeEventPanel(){
+  evPanelKey = null; evPanelItems = [];
+  document.getElementById('evPanel').hidden = true;
+  document.body.classList.remove('ev-panel-open');
+  markEventPanelRow();
+}
+// 上の帯(ボタンとタブ)の下から始める(帯は画面の上に固定されているため)
+function placeEventPanel(){
+  const tabs = document.querySelector('nav.tabs');
+  const top = tabs ? Math.max(0, tabs.getBoundingClientRect().bottom) + 8 : 8;
+  document.getElementById('evPanel').style.top = top + 'px';
+}
+window.addEventListener('resize', ()=>{ if(evPanelKey) placeEventPanel(); });
+// 表で、パネルに出している日の行に印を付ける
+function markEventPanelRow(){
+  document.querySelectorAll('#gridTable tr.ev-selected-row').forEach(tr=>tr.classList.remove('ev-selected-row'));
+  if(!evPanelKey) return;
+  const tr = document.querySelector(`#gridTable tr[data-key="${evPanelKey}"]`);
+  if(tr) tr.classList.add('ev-selected-row');
+}
+// 予定入力の表を描き直したあとに呼ぶ(元に戻すなどで内容が変わったときに、パネルも合わせる)
+function syncEventPanelAfterRender(){
+  if(!evPanelKey) return;
+  markEventPanelRow();
+  const panel = document.getElementById('evPanel');
+  if(panel.contains(document.activeElement)) return; // パネルで入力中は、そのまま
+  loadEventPanelItems();
+  renderEventPanel();
+}
+// パネルの内容を、その日のデータに書き込む(入力やチェックを変えるたびに呼ぶ)
+function saveEventPanel(){
+  if(!editUnlocked || !evPanelKey) return;
+  captureUndoPoint();
+  writeEventItems(evPanelKey, evPanelItems);
+  markDirty();
+  renderAgenda();
+}
+// チェックの決まり:
+//  ・「年間」に載せると、月間にも載る(全体の行事は必ず。教員のみの行事は、あとで「月間」を外せる=教員用の年間だけ)
+//  ・どの予定表にも載らない状態にはしない(年間も月間も外れたら、月間に戻す)
+function setEventItemFlag(it, flag, on){
+  if(flag==='annual'){ it.annual = on; if(on) it.monthly = true; }
+  else if(flag==='monthly'){ it.monthly = on; }
+  else if(flag==='teacher'){ it.teacher = on; }
+  if(!it.teacher && it.annual) it.monthly = true;
+  if(!it.annual && !it.monthly) it.monthly = true;
+}
+function moveEventPanelDay(delta){
+  const [y,m,d] = evPanelKey.split('-').map(Number);
+  const dt = new Date(y, m-1, d+delta);
+  const ny = dt.getFullYear(), nm = dt.getMonth()+1, nd = dt.getDate();
+  const fy = nm>=4 ? ny : ny-1;
+  if(fy !== state.meta.fiscalYear){ alert('年度の最初・最後の日です。'); return; }
+  const {year, month} = currentSelectedYM();
+  if(ny!==year || nm!==month){ document.getElementById('monthSelect').value = `${ny}-${nm}`; renderAgenda(); }
+  openEventPanel(dkey(ny,nm,nd));
+  const tr = document.querySelector(`#gridTable tr[data-key="${evPanelKey}"]`);
+  if(tr) tr.scrollIntoView({block:'nearest'});
+}
+function renderEventPanel(){
+  const body = document.getElementById('evPanelBody');
+  if(!evPanelKey){ body.innerHTML = ''; return; }
+  document.getElementById('evPanelTitle').textContent = evPanelDayLabel(evPanelKey) + 'の学校行事等';
+  const dis = editUnlocked ? '' : 'disabled';
+  const [y,m,d] = evPanelKey.split('-').map(Number);
+  const status = getDayStatus(y,m,d);
+  let html = '';
+  if(!editUnlocked) html += '<p class="ev-note">見るだけの状態です。直すときは、上の「🔒 編集する」を押してください。</p>';
+  if(status.source==='national' && status.label){
+    html += `<p class="ev-note">祝日(${escapeHtml(status.label)})です。祝日名は、消しても自動で年間予定表などに載ります。</p>`;
   }
-  eventPickerBoxValues = initial ? initial.split('　').map(s=>s.trim()).filter(Boolean) : [];
-  if(eventPickerBoxValues.length===0) eventPickerBoxValues = [''];
-  eventPickerInitialSnapshot = JSON.stringify(eventPickerBoxValues.map(v=>v.trim()).filter(Boolean));
-  document.getElementById('eventPickerAddMsg').textContent = '';
-  eventPickerHideUsed = true;
-  eventPickerCandSearch = '';
-  document.getElementById('eventPickerHideUsed').checked = true;
-  document.getElementById('eventPickerCandSearch').value = '';
-  renderEventPickerBoxes();
-  renderEventCandidateList();
-  document.getElementById('eventPickerOverlay').classList.add('show');
-  setTimeout(()=>{ const el = document.querySelector('.ev-box-input'); if(el) el.focus(); }, 50);
-}
-// ✕・キャンセルでの「保存せず閉じる」操作。候補を選んだ・内容を変更した状態のまま
-// 気づかず閉じて選択内容が失われることがないよう、変更がある場合だけ確認する。
-function closeEventPickerModalWithConfirm(){
-  const changed = JSON.stringify(eventPickerBoxValues.map(v=>v.trim()).filter(Boolean)) !== eventPickerInitialSnapshot;
-  if(changed && !confirm('保存せずに閉じますか?入力・選択した内容は失われます。')) return;
-  closeEventPickerModal();
-}
-function closeEventPickerModal(){
-  document.getElementById('eventPickerOverlay').classList.remove('show');
-  eventPickerKey = null; eventPickerField = null; eventPickerBoxValues = ['']; eventPickerUsedCandidateIds = new Set();
-}
-function renderEventPickerBoxes(){
-  const wrap = document.getElementById('eventPickerBoxes');
-  wrap.innerHTML = eventPickerBoxValues.map((v,i)=>`
-    <div class="field-row" style="margin-bottom:6px;">
-      <input type="text" class="ev-box-input" data-idx="${i}" value="${escapeHtml(v)}" style="flex:1;font-size:13.5px;padding:7px;box-sizing:border-box;font-family:inherit;" placeholder="自由に入力できます">
-      <button type="button" class="ghost tiny ev-box-addcand" data-idx="${i}">候補に追加</button>
-      ${eventPickerBoxValues.length>1 ? `<button type="button" class="ghost tiny danger ev-box-remove" data-idx="${i}">✕</button>` : ''}
-    </div>`).join('');
-  wrap.querySelectorAll('.ev-box-input').forEach(inp=>{
-    inp.addEventListener('input', ()=>{ eventPickerBoxValues[Number(inp.dataset.idx)] = inp.value; });
+  if(evPanelItems.length===0) html += '<p class="ev-note">この日の行事はまだありません。下の「＋ 行事を足す」か、候補から選んでください。</p>';
+  evPanelItems.forEach((it,i)=>{
+    // 全体の行事を「年間」にしているときは、月間を外せない(年間予定表に載る行事は、月間予定表にも載るため)
+    const monthLock = it.annual && !it.teacher;
+    html += `<div class="ev-item">
+      <span class="ev-swatch ${eventItemClass(it)}">●</span>
+      <input type="text" class="ev-item-text" data-idx="${i}" value="${escapeHtml(it.text)}" placeholder="行事の名前" ${dis}>
+      <button type="button" class="ghost tiny danger ev-item-del" data-idx="${i}" title="この行事を消す" ${dis}>✕</button>
+      <div class="ev-flags">
+        <label><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="annual" ${it.annual?'checked':''} ${dis}>年間</label>
+        <label title="${monthLock?'全体の行事は、年間に載せると月間にも載ります':''}"><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="monthly" ${it.monthly?'checked':''} ${dis||(monthLock?'disabled':'')}>月間</label>
+        <label><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="teacher" ${it.teacher?'checked':''} ${dis}>教員のみ</label>
+        <span class="ev-where">→ ${escapeHtml(eventItemLabel(it))}</span>
+        <button type="button" class="ghost tiny ev-item-cand" data-idx="${i}" ${dis}>候補に追加</button>
+      </div>
+    </div>`;
   });
-  wrap.querySelectorAll('.ev-box-addcand').forEach(btn=>{
+  html += `<button type="button" class="ghost tiny" id="evAddItem" ${dis}>＋ 行事を足す</button> <span id="evPanelMsg" class="ev-msg"></span>`;
+  html += `<div class="ev-legend"><span class="ev-a ev-strong">年間(年間と月間)</span><span class="ev-m">月間のみ</span><span class="ev-t">教員のみ(月間)</span><span class="ev-t ev-strong">教員のみ(年間あり)</span></div>`;
+  html += `<h4 class="ev-sub">候補から選ぶ</h4>
+    <p class="ev-note" style="margin-top:0;">日程が決まっていない行事などを候補にしておき、日程が決まったらここから選べます。選ぶと「月間」の行事として入るので、必要ならチェックを変えてください。</p>
+    <div class="field-row" style="margin-bottom:6px;gap:10px;">
+      <input type="text" id="evCandSearch" placeholder="候補を検索" value="${escapeHtml(evCandSearch)}" style="flex:1;font-size:13px;padding:5px 7px;box-sizing:border-box;font-family:inherit;">
+      <label style="display:flex;align-items:center;gap:4px;font-size:12.5px;white-space:nowrap;"><input type="checkbox" id="evCandHideUsed" ${evCandHideUsed?'checked':''}>使用済みを隠す</label>
+    </div>
+    <div class="holiday-list" id="evCandList" style="max-height:none;"></div>`;
+  body.innerHTML = html;
+  renderEventPanelCandidates();
+
+  body.querySelectorAll('.ev-item-text').forEach(inp=>{
+    inp.addEventListener('input', ()=>{ evPanelItems[Number(inp.dataset.idx)].text = inp.value; });
+    inp.addEventListener('change', ()=>{ saveEventPanel(); });
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } });
+  });
+  body.querySelectorAll('.ev-flag').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      setEventItemFlag(evPanelItems[Number(cb.dataset.idx)], cb.dataset.flag, cb.checked);
+      saveEventPanel(); renderEventPanel();
+    });
+  });
+  body.querySelectorAll('.ev-item-del').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const msgEl = document.getElementById('eventPickerAddMsg');
-      const text = (eventPickerBoxValues[Number(btn.dataset.idx)]||'').trim();
-      if(!text){ msgEl.textContent = '内容を入力してください。'; return; }
-      if((state.eventCandidates||[]).some(c=>c.text===text)){ msgEl.textContent = 'すでに同じ内容の候補があります。'; return; }
+      const it = evPanelItems[Number(btn.dataset.idx)];
+      if(it.text.trim() && !confirm(`「${it.text.trim()}」を消しますか？\n(すぐなら Ctrl+Z で元に戻せます)`)) return;
+      evPanelItems.splice(Number(btn.dataset.idx), 1);
+      saveEventPanel(); renderEventPanel();
+    });
+  });
+  body.querySelectorAll('.ev-item-cand').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const msg = document.getElementById('evPanelMsg');
+      const text = (evPanelItems[Number(btn.dataset.idx)].text||'').trim();
+      if(!text){ msg.textContent = '行事の名前を入れてください。'; return; }
+      if((state.eventCandidates||[]).some(c=>c.text===text)){ msg.textContent = 'すでに同じ候補があります。'; return; }
       if(!state.eventCandidates) state.eventCandidates = [];
-      state.eventCandidates.push({id:genId(), text, useCount:0});
+      state.eventCandidates.push({ id:genId(), text, useCount:1 }); // この日に使っているので、使用済みとして登録する
       markDirty();
-      msgEl.textContent = '候補に追加しました。';
-      renderEventCandidateList();
+      msg.textContent = '候補に追加しました。';
+      renderEventPanelCandidates();
     });
   });
-  wrap.querySelectorAll('.ev-box-remove').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      eventPickerBoxValues.splice(Number(btn.dataset.idx), 1);
-      renderEventPickerBoxes();
-    });
+  const add = document.getElementById('evAddItem');
+  add.addEventListener('click', ()=>{
+    evPanelItems.push({ text:'', annual:false, monthly:true, teacher:false });
+    renderEventPanel();
+    const inputs = body.querySelectorAll('.ev-item-text');
+    if(inputs.length) inputs[inputs.length-1].focus();
   });
+  document.getElementById('evCandSearch').addEventListener('input', e=>{ evCandSearch = e.target.value; renderEventPanelCandidates(); });
+  document.getElementById('evCandHideUsed').addEventListener('change', e=>{ evCandHideUsed = e.target.checked; renderEventPanelCandidates(); });
 }
-document.getElementById('eventPickerAddBox').addEventListener('click', ()=>{
-  eventPickerBoxValues.push('');
-  renderEventPickerBoxes();
-  const inputs = document.querySelectorAll('.ev-box-input');
-  const last = inputs[inputs.length-1];
-  if(last) last.focus();
-});
-function renderEventCandidateList(){
-  const wrap = document.getElementById('eventPickerCandidateList');
+function renderEventPanelCandidates(){
+  const wrap = document.getElementById('evCandList');
+  if(!wrap) return;
   const all = state.eventCandidates || [];
-  if(all.length===0){ wrap.innerHTML = '<p style="padding:10px;font-size:12.5px;color:var(--ink-soft);">候補はまだありません。上の枠に内容を入れてから「候補に追加」で登録できます。</p>'; return; }
-  const q = eventPickerCandSearch.trim().toLowerCase();
+  if(all.length===0){ wrap.innerHTML = '<p style="padding:10px;font-size:12.5px;color:var(--ink-soft);margin:0;">候補はまだありません。行事の「候補に追加」で登録できます。</p>'; return; }
+  const q = evCandSearch.trim().toLowerCase();
   const list = all.filter(c=>{
     if(q && !c.text.toLowerCase().includes(q)) return false;
-    // 「くり返し使う」に指定した候補は、使用済みでも「使用済みを隠す」の対象にしない
-    if(eventPickerHideUsed && c.useCount>0 && !c.repeatable) return false;
+    // 「くり返し使う」にした候補は、使用済みでも隠さない
+    if(evCandHideUsed && c.useCount>0 && !c.repeatable) return false;
     return true;
   });
-  if(list.length===0){ wrap.innerHTML = '<p style="padding:10px;font-size:12.5px;color:var(--ink-soft);">条件に一致する候補がありません。</p>'; return; }
-  wrap.innerHTML = `<table><tbody>${
-    list.map(c=>{
-      const used = c.useCount>0;
-      return `<tr class="candidate-row ${used?'used':''}">
-        <td>${escapeHtml(c.text)}${used?`<span class="cand-count">✓ 使用済み(${c.useCount}回)</span>`:''}</td>
-        <td style="white-space:nowrap;">
-          <label style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;margin-right:6px;">
-            <input type="checkbox" class="cand-repeat-toggle" data-id="${c.id}" ${c.repeatable?'checked':''} ${editUnlocked?'':'disabled'}>くり返し使う
-          </label>
-          <button class="ghost tiny" data-selectcand="${c.id}" ${editUnlocked?'':'disabled'}>選択</button>
-          <button class="ghost tiny danger" data-delcand="${c.id}" ${editUnlocked?'':'disabled'}>削除</button>
-        </td>
-      </tr>`;
-    }).join('')
-  }</tbody></table>`;
-  wrap.querySelectorAll('input.cand-repeat-toggle').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const cand = state.eventCandidates.find(c=>c.id===cb.dataset.id);
-      if(!cand) return;
-      cand.repeatable = cb.checked;
-      markDirty();
-      renderEventCandidateList();
-    });
-  });
-  wrap.querySelectorAll('button[data-selectcand]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const cand = state.eventCandidates.find(c=>c.id===btn.dataset.selectcand);
-      if(!cand) return;
-      // 空いている枠があればそこに入れる。無ければ新しい枠を追加する。
-      const emptyIdx = eventPickerBoxValues.findIndex(v=>!v.trim());
-      if(emptyIdx!==-1) eventPickerBoxValues[emptyIdx] = cand.text;
-      else eventPickerBoxValues.push(cand.text);
-      eventPickerUsedCandidateIds.add(cand.id);
-      renderEventPickerBoxes();
-    });
-  });
-  wrap.querySelectorAll('button[data-delcand]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.dataset.delcand;
-      const cand = state.eventCandidates.find(c=>c.id===id);
-      if(!cand || !confirm(`候補「${cand.text}」を削除しますか?`)) return;
-      state.eventCandidates = state.eventCandidates.filter(c=>c.id!==id);
-      eventPickerUsedCandidateIds.delete(id);
-      markDirty();
-      renderEventCandidateList();
-    });
-  });
+  if(list.length===0){ wrap.innerHTML = '<p style="padding:10px;font-size:12.5px;color:var(--ink-soft);margin:0;">条件に合う候補がありません。</p>'; return; }
+  const dis = editUnlocked ? '' : 'disabled';
+  wrap.innerHTML = '<table><tbody>' + list.map(c=>{
+    const used = c.useCount>0;
+    return `<tr class="candidate-row ${used?'used':''}">
+      <td>${escapeHtml(c.text)}${used?`<span class="cand-count">✓ 使用済み(${c.useCount}回)</span>`:''}</td>
+      <td style="white-space:nowrap;">
+        <label style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;margin-right:4px;"><input type="checkbox" class="cand-repeat-toggle" data-id="${c.id}" ${c.repeatable?'checked':''} ${dis}>くり返し使う</label>
+        <button class="ghost tiny" data-selectcand="${c.id}" ${dis}>選択</button>
+        <button class="ghost tiny danger" data-delcand="${c.id}" ${dis}>削除</button>
+      </td></tr>`;
+  }).join('') + '</tbody></table>';
+  wrap.querySelectorAll('.cand-repeat-toggle').forEach(cb=>cb.addEventListener('change', ()=>{
+    const cand = state.eventCandidates.find(c=>c.id===cb.dataset.id);
+    if(!cand) return;
+    cand.repeatable = cb.checked; markDirty(); renderEventPanelCandidates();
+  }));
+  wrap.querySelectorAll('button[data-selectcand]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const cand = state.eventCandidates.find(c=>c.id===btn.dataset.selectcand);
+    if(!cand) return;
+    // 空の行があればそこに入れる。無ければ行を足す
+    const empty = evPanelItems.find(it=>!it.text.trim());
+    if(empty) empty.text = cand.text;
+    else evPanelItems.push({ text:cand.text, annual:false, monthly:true, teacher:false });
+    cand.useCount = (cand.useCount||0) + 1;
+    saveEventPanel(); renderEventPanel();
+  }));
+  wrap.querySelectorAll('button[data-delcand]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const cand = state.eventCandidates.find(c=>c.id===btn.dataset.delcand);
+    if(!cand || !confirm(`候補「${cand.text}」を削除しますか?`)) return;
+    state.eventCandidates = state.eventCandidates.filter(c=>c.id!==cand.id);
+    markDirty(); renderEventPanelCandidates();
+  }));
 }
-document.getElementById('eventPickerCandSearch').addEventListener('input', (e)=>{
-  eventPickerCandSearch = e.target.value;
-  renderEventCandidateList();
-});
-document.getElementById('eventPickerHideUsed').addEventListener('change', (e)=>{
-  eventPickerHideUsed = e.target.checked;
-  renderEventCandidateList();
-});
-document.getElementById('eventPickerClose').addEventListener('click', closeEventPickerModalWithConfirm);
-document.getElementById('eventPickerCancel').addEventListener('click', closeEventPickerModalWithConfirm);
-document.getElementById('eventPickerSave').addEventListener('click', ()=>{
-  if(!eventPickerKey || !editUnlocked) return;
-  const val = eventPickerBoxValues.map(v=>v.trim()).filter(Boolean).join('　');
-  captureUndoPoint();
-  setFieldValue(eventPickerKey, eventPickerField, val);
-  eventPickerUsedCandidateIds.forEach(id=>{
-    const cand = state.eventCandidates.find(c=>c.id===id);
-    if(cand) cand.useCount = (cand.useCount||0) + 1;
-  });
-  markDirty();
-  closeEventPickerModal();
-  renderAgenda();
-});
+document.getElementById('evPanelClose').addEventListener('click', closeEventPanel);
+document.getElementById('evPanelPrev').addEventListener('click', ()=>moveEventPanelDay(-1));
+document.getElementById('evPanelNext').addEventListener('click', ()=>moveEventPanelDay(1));
 
 // 前年度の学校行事等(4欄すべて)の内容を候補プールへ一括登録する(重複する内容は追加しない)。
 // 以前は「共通・年間」欄だけを見ていたが、行事の内容が「共通・月間のみ」等の欄に入っている
