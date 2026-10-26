@@ -907,7 +907,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-09-27 08:34';
+const APP_VERSION = '2026-10-26 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1164,6 +1164,10 @@ function migrateDayRecord(rec){
 let state = emptyState();
 let fileHandle = null;
 let dirty = false;
+// 最後に読み書きしたときのファイルの更新時刻。ほかのパソコンで保存されたこと(=手元の内容が古いこと)に気づくために使う(2026-10-26)。
+let lastKnownModified = 0;
+// 「ほかの場所で新しく保存されている」ので保存を止めている状態(自動保存のたびに確認を出さないため)
+let saveConflict = false;
 
 //////////////////////// 予定入力タブの元に戻す(Ctrl+Z)/やり直す(Ctrl+Y) ////////////////////////
 // 対象は日ごとのデータ(state.days)のみ。学校名などの設定タブの変更は対象外。
@@ -1417,10 +1421,26 @@ function scheduleAutosave(){
 function stateToText(obj){ return JSON.stringify(obj, null, 2); }
 
 async function writeToHandle(handle){
+  // 開いたあとに、ほかのパソコンでこのファイルが保存されていないか確かめる。
+  // 確かめずに書くと、手元の古い内容で相手の変更を消してしまう(2026-10-26 追加)。
+  if(handle===fileHandle && lastKnownModified){
+    const cur = await handle.getFile();
+    if(cur.lastModified !== lastKnownModified){
+      if(saveConflict) return;
+      if(!confirm('このファイルは、あなたが開いたあとに、ほかの場所(ほかのパソコンやタブ)で保存されています。\nこのまま保存すると、そちらの変更は消えてしまいます。\n\n保存しますか？\n(「キャンセル」を押すと保存しません。その場合は、入力した内容を紙などに控えてから、ページを開き直して入力し直してください)')){
+        saveConflict = true;
+        clearTimeout(autosaveTimer);
+        setStatus('保存を止めています(ほかの場所で新しく保存されているため)。ページを開き直してください', 'dirty');
+        return;
+      }
+    }
+  }
+  saveConflict = false;
   stampSaveMeta();
   const writable = await handle.createWritable();
   await writable.write(stateToText(state));
   await writable.close();
+  if(handle===fileHandle){ try{ lastKnownModified = (await handle.getFile()).lastModified; }catch(e){} }
   markSaved();
   updateFileVersionInfo();
   maybeRunBackup();
@@ -1446,6 +1466,7 @@ async function doSaveAs(){
         ...(startIn ? {startIn} : {})
       });
       fileHandle = handle;
+      lastKnownModified = 0; saveConflict = false; // 新しく保存するファイルなので、ほかの保存との確認はしない
       await rememberLastFileHandle(handle);
       await writeToHandle(handle);
       document.getElementById('btnSave').disabled = !editUnlocked;
@@ -2180,10 +2201,12 @@ async function doOpen(){
       const file = await handle.getFile();
       loadStateFromText(await file.text());
       fileHandle = handle;
+      lastKnownModified = file.lastModified; saveConflict = false;
       await rememberLastFileHandle(handle);
       document.getElementById('btnSave').disabled = !editUnlocked;
       setCurrentFileDisplay(handle.name);
       document.getElementById('noFileBanner').style.display='none';
+      afterOpenFile(handle.name);
     }catch(e){ if(e.name!=='AbortError') alert('開けませんでした: '+e.message); }
   } else {
     const inp = document.createElement('input');
@@ -2226,11 +2249,39 @@ async function openHandleAsCurrentFile(handle){
   const file = await handle.getFile();
   loadStateFromText(await file.text());
   fileHandle = handle;
+  lastKnownModified = file.lastModified; saveConflict = false;
   await rememberLastFileHandle(handle);
   document.getElementById('btnSave').disabled = !editUnlocked;
   setCurrentFileDisplay(handle.name);
   document.getElementById('noFileBanner').style.display = 'none';
+  afterOpenFile(handle.name);
 }
+// ファイルを開いたあと: いつ保存された内容かを知らせる。バックアップのファイルなら注意を出す。
+// (「開く」で一度バックアップのファイルを選ぶと、次からはそれが「前回のファイル」として自動で開くため、
+//  古い内容だと気づけるようにする。2026-10-26)
+function afterOpenFile(name){
+  const at = state.meta && state.meta.savedAt ? new Date(state.meta.savedAt) : null;
+  const atText = at && !isNaN(at.getTime()) ? `(最後に保存: ${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())})` : '';
+  setStatus(`「${name}」を開きました${atText}`, 'saved');
+  if(/バックアップ|backup/i.test(name)){
+    alert(`開いたファイル「${name}」は、バックアップのファイルのようです。\n\nバックアップは、保存した時点の古い内容です。ふだん使うデータファイルを、上の「開く」で選び直してください(次からは、選び直したファイルが自動で開きます)。\n\n復元のために開いたときは、内容を確かめてから「名前を付けて保存」で、いつものファイル名に保存し直してください。`);
+  }
+}
+// ほかのパソコンでファイルが保存されていたら、最新の内容を読み直す(閲覧中だけ。編集中は保存のときに確かめる)。
+// ページを開いたままにしておくと、古い内容のまま見続けてしまうため(2026-10-26)。
+async function refreshIfChangedOnDisk(){
+  if(!fileHandle || editUnlocked || !lastKnownModified) return;
+  try{
+    const f = await fileHandle.getFile();
+    if(f.lastModified === lastKnownModified) return;
+    loadStateFromText(await f.text());
+    lastKnownModified = f.lastModified; saveConflict = false;
+    setStatus('ほかの場所で保存された、最新の内容を読み込みました', 'saved');
+  }catch(e){ /* 共有サーバーにつながらないときなどは、そのままにする */ }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshIfChangedOnDisk(); });
+window.addEventListener('focus', refreshIfChangedOnDisk);
+setInterval(refreshIfChangedOnDisk, 60*1000);
 async function tryAutoLoadLastFile(){
   if(!supportsFSA) return;
   let handle;
@@ -4296,6 +4347,54 @@ function renderTeachingDaysWeeksPanel(){
   html += '<small class="hint">授業日数は各学年の登校日の日数です。「登校日のある週」は月〜日を1週とし、登校日が1日でもあれば(祝日などで日数が少ない週も)1週と数えます。月をまたぐ週は、その週の最初の登校日がある月・学期に数えます。「日数÷5」は授業日数を週5日で換算した値で、標準授業時数の「年間35週」と比べる目安になります。</small></div>';
   return html;
 }
+// 道徳・学活・総合の一覧(2026-10-26 追加)。
+// 学年を選ぶと、①〜⑥に「道」「学」「総」が入っている日を1行ずつ並べ、何時間目かと、その日の行事(教員用すべて)を出す。
+// 道徳・学活・総合の授業の中身を、行事(事前指導・振り返りなど)と照らし合わせて計画・確認するため。
+let hrListGrade = 1;       // 表示する学年
+let hrListRange = 'year';  // 期間: 'year'(年間)|'t1'|'t2'|'t3'(学期)|'month'(上で選んでいる月)
+const HR_LIST_CODES = [ ['道','道徳'], ['学','学活'], ['総','総合'] ];
+function renderHomeroomListPanel(year, month){
+  const g = hrListGrade;
+  const ranges = [ ['year','年間'], ['t1','1学期'], ['t2','2学期'], ['t3','3学期'], ['month', month+'月'] ];
+  const monthList = hrListRange==='month' ? [{year,month}]
+    : hrListRange==='t1' ? getTermMonths(1) : hrListRange==='t2' ? getTermMonths(2) : hrListRange==='t3' ? getTermMonths(3)
+    : fiscalMonthList(state.meta.fiscalYear);
+  const wd = ['日','月','火','水','木','金','土'];
+  const total = {道:0, 学:0, 総:0};
+  let rows = '';
+  monthList.forEach(({year:y, month:m})=>{
+    for(let d=1; d<=daysInMonth(y,m); d++){
+      const rec = migrateDayRecord(state.days[dkey(y,m,d)]);
+      const arr = rec.periods['g'+g] || [];
+      // 時限ごとに「道」「学」「総」を探す(数え方は上の「授業日課の内訳」と同じ。前後の空白は無視)
+      const at = {道:[], 学:[], 総:[]};
+      arr.forEach((v,i)=>{ const c = String(v||'').trim(); if(at[c]) at[c].push(i); });
+      if(!at.道.length && !at.学.length && !at.総.length) continue;
+      HR_LIST_CODES.forEach(([c])=>{ total[c] += at[c].length; });
+      const parts = buildAnnualEventParts(rec, {includeMonthly:true, includeTeacherOnly:true, includeMeeting:false}, getDayStatus(y,m,d), 'teacher');
+      const ev = parts.map(p=>escapeHtml(p.text)).join('<br>');
+      rows += `<tr><td style="white-space:nowrap;">${m}/${d}(${wd[new Date(y,m-1,d).getDay()]})</td>`
+        + HR_LIST_CODES.map(([c])=>`<td>${at[c].map(i=>'①②③④⑤⑥'[i]).join('')}</td>`).join('')
+        + `<td style="text-align:left;">${ev}</td></tr>`;
+    }
+  });
+  let html = '<div class="panel"><h2>道徳・学活・総合の一覧</h2>';
+  html += '<div class="month-head" style="margin-bottom:8px;"><div class="aud-switch" id="hrListGradeSwitch">'
+    + [1,2,3].map(x=>`<button type="button" data-g="${x}"${x===g?' class="active"':''}>${x}年</button>`).join('') + '</div>'
+    + '<label style="font-size:13px;color:var(--ink-soft);margin-left:8px;">期間</label><select id="hrListRange">'
+    + ranges.map(([v,l])=>`<option value="${v}"${v===hrListRange?' selected':''}>${l}</option>`).join('') + '</select></div>';
+  if(!rows){
+    html += `<p class="preview-empty">この期間の${g}年の①〜⑥に、「道」「学」「総」はまだ入力されていません。</p></div>`;
+    return html;
+  }
+  html += '<table class="stats-table"><thead><tr><th>日付</th>' + HR_LIST_CODES.map(([,l])=>`<th>${l}</th>`).join('') + '<th>その日の行事</th></tr></thead><tbody>'
+    + rows
+    + '<tr class="stats-total"><td>合計(コマ数)</td>' + HR_LIST_CODES.map(([c])=>`<td>${total[c]}</td>`).join('') + '<td></td></tr>'
+    + '</tbody></table>';
+  html += '<small class="hint">予定入力の①〜⑥に「道」「学」「総」が入っている日です。丸数字は何時間目かを表します。「その日の行事」は、月間予定表(教員用)と同じく、学校行事等と教員のみの行事を合わせて出しています。</small></div>';
+  return html;
+}
+
 function renderStats(){
   const wrap = document.getElementById('statsWrap');
   if(!wrap) return;
@@ -4358,6 +4457,8 @@ function renderStats(){
   html += '<small class="hint">「1」〜「6」は時限の便宜番号での入力回数、「総」「道」「学」「行」「音」「弁」「欠」「●」はその記号が入力された回数です。</small>';
   html += '</div>';
 
+  html += renderHomeroomListPanel(year, month);
+
   // 曜日・時限別の実施回数(カット把握用): 「月①」が月/学期/年間で何回実施されたかを、
   // その曜日の登校日数と並べて確認できるようにする。差があれば行事等でその時限がカットされたことがわかる。
   html += '<div class="panel"><h2>曜日・時限別の実施回数</h2>';
@@ -4408,6 +4509,9 @@ function renderStats(){
       markDirty(); renderStats();
     });
   });
+  wrap.querySelectorAll('#hrListGradeSwitch button').forEach(b=>b.addEventListener('click', ()=>{ hrListGrade = Number(b.dataset.g); renderStats(); }));
+  const hrRangeSel = document.getElementById('hrListRange');
+  if(hrRangeSel) hrRangeSel.addEventListener('change', ()=>{ hrListRange = hrRangeSel.value; renderStats(); });
   const btnAddEventHourEntry = document.getElementById('btnAddEventHourEntry');
   if(btnAddEventHourEntry){
     btnAddEventHourEntry.disabled = !editUnlocked;
@@ -4989,6 +5093,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-26</strong>: ほかのパソコンで保存された新しい内容があるのに、古い内容のまま表示・編集されることがあった問題を直しました。「編集する」を押したときは最新の内容を読み直してから編集を始めます。見ているだけのときも、画面に戻ったときや1分おきに確かめて、新しくなっていれば読み直します。保存の前に、ほかで保存されていないかを確かめます(保存されていたら確認を出します)。バックアップのファイルを開いたときは、お知らせを出します。「時数・集計」タブに「道徳・学活・総合の一覧」を追加しました(学年・期間を選ぶと、①〜⑥に「道」「学」「総」がある日と、その日の行事を一覧にします)。</li>
     <li><strong>2026-09-27</strong>: データファイルの形式名を「.dat」から「.json」に変更(中身は同じです)。これまでの .dat ファイルもそのまま開けて、上書き保存もできます。.json にそろえたいときは、一度「名前を付けて保存」で保存し直してください。あわせて、データファイルをメモ帳などで開いても読みやすいよう改行を入れて保存するようにし、自動バックアップのファイル名を「行事予定_バックアップ_日付_時刻.json」に変更しました。</li>
     <li><strong>2026-09-26</strong>: 「時数・集計」タブに「授業日数・授業週数」を追加。学年ごとに、4月〜3月・学期ごと・年間の授業日数と、授業週数(登校日のある週の数/授業日数÷5の換算値)を表示。</li>
     <li><strong>2026-09-26</strong>: 「年間予定入力」タブの名前を「予定入力」に変更(ヘルプ等の説明文も合わせて変更)。</li>
@@ -5490,11 +5595,18 @@ async function submitPasswordUnlock(){
     if(fileHandle){
       try{
         const file = await fileHandle.getFile();
-        const fresh = JSON.parse(await file.text());
+        const freshText = await file.text();
+        const fresh = JSON.parse(freshText);
         if(isEditLockFresh(fresh.editLock)){
           const mins = Math.max(1, Math.round((Date.now() - new Date(fresh.editLock.since).getTime())/60000));
           const proceed = confirm(`⚠ 警告: 現在、別の場所でこのファイルが編集中です(${mins}分前から)。\n\nこのまま編集を始めると、相手が入力した内容が上書きされて失われるおそれがあります。\n\n本当にこのまま編集を続けますか？`);
           if(!proceed){ document.getElementById('pwInput').value=''; return; }
+        }
+        // 開いたあとにほかの場所で保存されていたら、その最新の内容から編集を始める。
+        // (以前は読み直さずに古い内容のまま編集が始まり、自動保存で相手の変更を消してしまうことがあった。2026-10-26)
+        if(file.lastModified !== lastKnownModified){
+          loadStateFromText(freshText);
+          lastKnownModified = file.lastModified; saveConflict = false;
         }
       }catch(e){ /* 読み直しに失敗した場合は確認をスキップして続行する */ }
     }

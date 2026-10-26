@@ -13,6 +13,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 **2026-09-27 の変更**: データファイルの拡張子を `.dat` から `.json` に変更(中身は以前と同じJSON。開くときは `.json` と `.dat` の両方を選べる。保存・新規作成・自動バックアップ・サンプル出力は `.json`)。保存時に改行と字下げを入れるようにした(`stateToText`。読み込みは以前の1行の形式もそのまま読める)。自動バックアップのファイル名は `行事予定_バックアップ_YYYY-MM-DD_HHMMSS.json`(共通ルールに合わせた。以前は `学校名_backup_YYYYMMDD_HHMMSS.dat`)。`サンプルデータ_1年分.dat` を `.json` に改名。README・CHANGELOG・CLAUDE.md・.gitignore を追加。
 
+**2026-10-26 の変更**: (1) 古い内容のまま表示・編集される問題を修正。原因は、「編集する」のときにファイルを読み直していたのが「編集中の印」の確認だけで、画面の内容(`state`)は開いたときのまま編集が始まり、自動保存でほかのパソコンの新しい内容を上書きしていたこと。また、開いたままのページは新しい内容に気づかず、保存の前の確認も無かった。`lastKnownModified`(最後に読み書きしたときのファイルの更新時刻)を持ち、①編集を始めるとき(`submitPasswordUnlock`)にファイルが新しければ読み直す、②閲覧中は画面に戻ったとき・1分おきに確かめて読み直す(`refreshIfChangedOnDisk`)、③保存の前(`writeToHandle`)にほかで保存されていれば確認を出し、キャンセルなら `saveConflict` で自動保存を止める、④バックアップのファイル(名前に「バックアップ」「backup」)を開いたらお知らせ(`afterOpenFile`。「開く」で一度バックアップを選ぶと、次からそれが前回のファイルとして自動で開くため)。仕組みは `../exam-manager` の `writeFile` と同じ考え方。(2) 「時数・集計」タブに「道徳・学活・総合の一覧」(`renderHomeroomListPanel`)を追加。学年(`hrListGrade`)と期間(`hrListRange`)を選ぶと、①〜⑥に「道」「学」「総」がある日を1行ずつ、時限と、その日の行事(`buildAnnualEventParts` で教員用すべて: 年間・月間・教員のみ・教員のみ年間)を出す。数え方は「授業日課の内訳」と同じ(合計が一致することを確かめた)。
+
 ## 現在の状況と次にやること(2026-09-26時点・まずここを読む)
 
 **現在の状態**: 作業は一区切りした状態で、途中で止まっている実装はない。最新コミットはGitHubにpush済み、appcopyにもミラー済み。個々の変更の経緯・理由は`TODO.md`(項目1〜31)に詳しく記録してある。ユーザー向けの変更内容は、アプリの「使い方 / マニュアル」→「更新履歴」にある。
@@ -150,7 +152,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 | 月間予定表プレビュー(教員用/家庭用) | `renderMonthlyPreview`, `PV_COLS_TEACHER`, `PV_COLS_FAMILY` |
 | 年間予定表(教員用/家庭用、表示内容選択可) | `renderAnnualPreview`, `buildAnnualEventParts`, `annualEventHtml/Text` |
 | 給食タブ(給食実施日数・喫食数・給食のない日) | `renderMealsTab`, `computeStatsForRange`, `computeAnnualMealSummary` |
-| 時数・集計タブ(授業日数・授業週数、行事時数、日課内訳、曜日時限別) | `renderStats`, `renderTeachingDaysWeeksPanel`, `computeTeachingDaysWeeks`, `computeStatsForRange`, `getTermMonths` |
+| 時数・集計タブ(授業日数・授業週数、行事時数、日課内訳、曜日時限別) | `renderStats`, `renderHomeroomListPanel`(道徳・学活・総合の一覧), `renderTeachingDaysWeeksPanel`, `computeTeachingDaysWeeks`, `computeStatsForRange`, `getTermMonths` |
 | 必要時数の編集(設定タブ) | `renderRequiredHoursEditor` |
 | 実績タブ(学級ごとの時間割・教科時数) | `renderActualsTab`, `renderActualsSummary`, `createActGrid`(Excel風の表。選択・コピペ・キー操作・IME対応), `tallyActuals`, `actualEffective`/`actualOverride`/`setActualOverride`, `normalizeSubject`, `actPushUndo`/`actUndo`/`actRedo`(実績タブ専用の元に戻す), `classList`/`actScopeClasses` |
 | 印刷部数の記録(履歴ログ) | `renderPrintCountList`(設定タブ) |
@@ -161,7 +163,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 | 編集パスワードロック | `applyLockUI`, `openPasswordModal`, `submitPasswordUnlock`, `editUnlocked`変数 |
 | 自動バックアップ(IndexedDBにフォルダハンドル保存) | `openBackupDB`, `idbSet/idbGet`, `runBackupNow`, `maybeRunBackup` |
 | サンプルデータ生成/即時読込 | `generateSampleState`, `exportSampleData`, `loadSampleDataInMemory`(**注**: 内部で`editUnlocked`を`false`にリセットするため、呼び出し順に注意) |
-| ファイル保存(File System Access API) | `doOpen`, `doSaveAs`, `doSave`, `writeToHandle`, `supportsFSA`変数 |
+| ファイル保存(File System Access API) | `doOpen`, `doSaveAs`, `doSave`, `writeToHandle`, `refreshIfChangedOnDisk`(閲覧中の読み直し), `afterOpenFile`, `lastKnownModified`・`saveConflict`(ほかの保存との確認), `supportsFSA`変数 |
 | 保存/読込(内部形式) | `loadStateFromText(text)` (= `JSON.parse`→`normalizeState`)、保存は各所で`JSON.stringify(state)` |
 
 ## テスト方法
