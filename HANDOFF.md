@@ -48,7 +48,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 - **ローカル作業フォルダ**: `C:\Users\idolo\Documents\projects\apps\school-events\`
 - **本体ファイル**: `index.html`(単一HTMLファイル、ビルド不要。旧ファイル名`行事予定管理アプリ_Phase1.html`から2026-09-09にリネーム。GitHub Pagesでリダイレクトなしにそのまま開けるようindex.htmlに統一した)
-- **旧ファイル名の転送ページ**: `行事予定管理アプリ_Phase1.html`は11行だけのリダイレクトページ(旧URLのブックマークが404にならないよう残している)。本体ではないので編集しない。
+- **旧ファイル名の転送ページ**: `行事予定管理アプリ_Phase1.html` は 2026-10-27 に削除した(ダウンロードした中身を分かりやすくするため)。
 - **GitHubリポジトリ(バックアップ・履歴管理)**: https://github.com/soichiroteacher/school-events (2026-09-27 に旧名から改名。旧名のURLも GitHub が自動で転送するが、GitHub Pages の旧URLは表示されなくなった) (**PUBLIC**。作成時はPrivateのつもりだったが実際は公開状態。GitHub Pagesでも公開されている。`origin`、ブランチ`master`)
   - アプリファイルを編集するたびに自動で`git add`→`commit`→`push`する運用(ユーザーの`C:\Users\idolo\.claude\CLAUDE.md`のグローバル指示)。force pushはしない。
   - つまり、ローカルのファイルが万一失われても、このGitHubリポジトリの最新コミットに全履歴が残っている。
