@@ -13,6 +13,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 **2026-09-27 の変更**: データファイルの拡張子を `.dat` から `.json` に変更(中身は以前と同じJSON。開くときは `.json` と `.dat` の両方を選べる。保存・新規作成・自動バックアップ・サンプル出力は `.json`)。保存時に改行と字下げを入れるようにした(`stateToText`。読み込みは以前の1行の形式もそのまま読める)。自動バックアップのファイル名は `行事予定_バックアップ_YYYY-MM-DD_HHMMSS.json`(共通ルールに合わせた。以前は `学校名_backup_YYYYMMDD_HHMMSS.dat`)。`サンプルデータ_1年分.dat` を `.json` に改名。README・CHANGELOG・CLAUDE.md・.gitignore を追加。
 
+**2026-10-30 の変更**: 学校行事等に「保護者来校」のチェック(予定入力の右側のパネル)を追加。日ごとのデータに `parentVisit`(行事名の配列)を足した(`emptyDayRecord`・`migrateDayRecord`・`pruneIfEmpty` に追記済み。古いファイルは空の配列になる)。家庭用の年間・月間予定表で、その行事だけを太字・1.2倍にする(画面は `.pv-parent`・`parentVisitHtml`、Excel は `parentVisitRuns` でセルの中の一部だけ書式を変える `runs`)。詳しくは TODO.md の35。
+
 **2026-10-27 の変更**: 予定入力の学校行事等を4欄から1欄＋右側のパネル(`#evPanel`)にまとめた。行事ごとに「年間」「月間」「教員のみ」のチェックで載せる先を決め、保存のときに4つの欄に読み替える(`eventItemsOf`・`writeEventItems`)。データの形とほかのタブの表示は変えていない。詳しくは TODO.md の32。
 
 **2026-10-26 の変更**: (1) 古い内容のまま表示・編集される問題を修正。原因は、「編集する」のときにファイルを読み直していたのが「編集中の印」の確認だけで、画面の内容(`state`)は開いたときのまま編集が始まり、自動保存でほかのパソコンの新しい内容を上書きしていたこと。また、開いたままのページは新しい内容に気づかず、保存の前の確認も無かった。`lastKnownModified`(最後に読み書きしたときのファイルの更新時刻)を持ち、①編集を始めるとき(`submitPasswordUnlock`)にファイルが新しければ読み直す、②閲覧中は画面に戻ったとき・1分おきに確かめて読み直す(`refreshIfChangedOnDisk`)、③保存の前(`writeToHandle`)にほかで保存されていれば確認を出し、キャンセルなら `saveConflict` で自動保存を止める、④バックアップのファイル(名前に「バックアップ」「backup」)を開いたらお知らせ(`afterOpenFile`。「開く」で一度バックアップを選ぶと、次からそれが前回のファイルとして自動で開くため)。仕組みは `../exam-manager` の `writeFile` と同じ考え方。(2) 「時数・集計」タブに「道徳・学活・総合の一覧」(`renderHomeroomListPanel`)を追加。学年(`hrListGrade`)と期間(`hrListRange`)を選ぶと、①〜⑥に「道」「学」「総」がある日を1行ずつ、時限と、その日の行事(`buildAnnualEventParts` で教員用すべて: 年間・月間・教員のみ・教員のみ年間)を出す。数え方は「授業日課の内訳」と同じ(合計が一致することを確かめた)。
@@ -116,7 +118,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
       lunch: {g1:'', g2:'', g3:'', g4:''},     // '○' / '×' / '弁' / ''(自由入力)
       periods: {g1:[6個], g2:[...], g3:[...], g4:[...]}, // ①〜⑥。'1'〜'6'/'道'/'総'/'学'/'行'/'音'/'弁'/'欠'/'●'
       schoolDay: {g1:null, g2:null, g3:null, g4:null},   // 学年別登校日。null=自動、true/false=明示
-      weeklyDuty: '', memo: '', memoInOutput: false
+      weeklyDuty: '', memo: '', memoInOutput: false,
+      parentVisit: []   // 保護者が来校する行事の名前(学校行事等の中の行事名と同じ文字。家庭用の予定表で太字・1.2倍。2026-10-30)
     }
   },
   presets: {...}, colWidths: {},

@@ -198,6 +198,7 @@
      以前は「年間かどうか」を太字で表していたが、教員のみの行事で年間と月間の違いが分かりにくかったため、別の印(囲み)にした */
   .ev-m{color:var(--ink);} .ev-t{color:#2e7d32;}
   .ev-y{background:#fff0b3;box-shadow:inset 0 0 0 1px #e3c96b;border-radius:3px;padding:0 3px;}
+  .ev-p{font-weight:700;} /* 保護者来校(家庭用の予定表で太字・大きめになる行事) */
   .field-btn.ev-cell-btn{font-size:11.5px;}
   tr.ev-selected-row td.cell, tr.ev-selected-row td.fixed, tr.ev-selected-row td.fixed2{background:#dcebf8 !important;} /* 年間の囲み(黄色)とまぎれないよう青系 */
   .ev-panel{position:fixed;right:12px;bottom:12px;width:400px;max-width:calc(100vw - 24px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:70;display:flex;flex-direction:column;}
@@ -286,6 +287,7 @@
   tr.pv-nonschool td{background:var(--nonschool-color);}
   .pv-teacheronly{}
   .pv-annual{font-weight:700;}
+  .pv-parent{font-weight:700;font-size:1.2em;} /* 家庭用: 保護者が来校する行事(2026-10-30) */
   .pv-meetingnote{color:#3949ab;font-style:italic;}
   .preview-memolist{margin-top:14px;font-size:12.5px;}
   .preview-memolist h4{font-size:13px;color:var(--accent);margin:0 0 6px;}
@@ -917,7 +919,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-27 18:00';
+const APP_VERSION = '2026-10-30 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1138,7 +1140,8 @@ function emptyDayRecord(){
     lunch:{g1:'',g2:'',g3:'',g4:''},
     periods:{ g1:['','','','','',''], g2:['','','','','',''], g3:['','','','','',''], g4:['','','','','',''] },
     schoolDay:{g1:null,g2:null,g3:null,g4:null}, // 学年別の登校日フラグ。null=祝日・土日から自動判定。g4=特別支援学級(有効時のみ使用)
-    weeklyDuty:'', memo:'', memoInOutput:false
+    weeklyDuty:'', memo:'', memoInOutput:false,
+    parentVisit:[] // 保護者が来校する行事の名前(学校行事等の中の行事名。家庭用の予定表で太字・大きめにする。2026-10-30)
   };
 }
 function migrateDayRecord(rec){
@@ -1168,6 +1171,7 @@ function migrateDayRecord(rec){
     g4: padPeriods(rec.periods && rec.periods.g4)
   };
   out.schoolDay = Object.assign({g1:null,g2:null,g3:null,g4:null}, rec.schoolDay||{});
+  out.parentVisit = Array.isArray(rec.parentVisit) ? rec.parentVisit.filter(x=>typeof x==='string' && x) : []; // 2026-10-30 追加(古いファイルには無い)
   return out;
 }
 
@@ -2382,7 +2386,7 @@ function buildCOLS(){
   const spOn = !!(state.meta && state.meta.supportClassEnabled);
   const cols = [
     // 学校行事等は1欄にまとめ、クリックすると右側のパネルで入力する(2026-10-27。以前は4欄。TODO.md 32)
-    {key:'events', label:'学校行事等', w:300, hint:'クリックすると、右側にその日の行事の入力欄が出ます。見分け方: 文字が黒=全体・緑=教員のみ、黄色の囲み=年間予定表にも載る'},
+    {key:'events', label:'学校行事等', w:300, hint:'クリックすると、右側にその日の行事の入力欄が出ます。見分け方: 文字が黒=全体・緑=教員のみ、黄色の囲み=年間予定表にも載る、太字=保護者来校'},
     {key:'meeting', label:'会議・出張・研修', w:110},
     {key:'planningMeeting', label:'企画会議', w:30, type:'checkbox', vertical:true},
     {key:'staffMeeting', label:'職員会議', w:30, type:'checkbox', vertical:true},
@@ -2471,6 +2475,7 @@ function pruneIfEmpty(dateKey){
     !rec.planningMeeting && !rec.staffMeeting && rec.cleaning===null && !rec.club &&
     !rec.lunch.g1 && !rec.lunch.g2 && !rec.lunch.g3 && !rec.lunch.g4 && !rec.weeklyDuty && !rec.memo &&
     rec.schoolDay.g1===null && rec.schoolDay.g2===null && rec.schoolDay.g3===null && rec.schoolDay.g4===null &&
+    !(rec.parentVisit && rec.parentVisit.length) &&
     Object.values(rec.periods).every(arr=>arr.every(v=>!v));
   if(empty) delete state.days[dateKey];
 }
@@ -3141,7 +3146,10 @@ function buildMonthlyExportGrid(year, month, cols, audience, includeMemo, isRefe
           if(effAnnual) parts.push(effAnnual);
           if(rec.eventsMonthly) parts.push(rec.eventsMonthly);
           if(audience==='teacher' && rec.eventsTeacherOnly) parts.push(rec.eventsTeacherOnly);
-          row[ci] = {v:parts.filter(Boolean).join('　'), style:lSsmall};
+          const evText = parts.filter(Boolean).join('　');
+          // 家庭用は、保護者来校の行事だけ太字・大きめにする(月間の行事欄は 9pt)
+          const evRuns = audience==='family' ? parentVisitRuns(rec, evText, 9) : null;
+          row[ci] = evRuns ? {runs:evRuns, style:lSsmall} : {v:evText, style:lSsmall};
         } else if(c.key==='meeting'){
           const parts=[];
           if(rec.planningMeeting) parts.push('企画会議');
@@ -3190,7 +3198,9 @@ function buildMonthlyExportGrid(year, month, cols, audience, includeMemo, isRefe
         const nCenterStyle = nshaded ? XSTYLE.HOLIDAY_CENTER : nnonschool ? XSTYLE.NONSCHOOL_CENTER : XSTYLE.CENTER;
         row[totalCols] = {v:d, num:true, style:nCenterStyle};
         row[totalCols+1] = {v:DOW[ndow], style:nCenterStyle};
-        row[totalCols+2] = {v:nparts.join('　'), style:nshaded?XSTYLE.HOLIDAY_LEFT_SMALL:(nnonschool?XSTYLE.NONSCHOOL_LEFT_SMALL:XSTYLE.LEFT_SMALL)};
+        const nStyle = nshaded?XSTYLE.HOLIDAY_LEFT_SMALL:(nnonschool?XSTYLE.NONSCHOOL_LEFT_SMALL:XSTYLE.LEFT_SMALL);
+        const nRuns = audience==='family' ? parentVisitRuns(nrec, nparts.join('　'), 9) : null;
+        row[totalCols+2] = nRuns ? {runs:nRuns, style:nStyle} : {v:nparts.join('　'), style:nStyle};
       } else {
         for(let i=totalCols;i<grandTotalCols;i++) row[i] = {v:'', style:XSTYLE.CENTER};
       }
@@ -3437,7 +3447,10 @@ function buildAnnualExportGrid(fy, audience){
       const lS = shaded ? XSTYLE.HOLIDAY_LEFT_WRAP : nonschool ? XSTYLE.NONSCHOOL_LEFT_WRAP : XSTYLE.LEFT_WRAP;
       grid[rIdx][base] = {v:d, num:true, style:cS};
       grid[rIdx][base+1] = {v:DOW[dow], style:cS};
-      grid[rIdx][base+2] = {v:annualEventText(rec, opts, status, audience), style:lS};
+      const evText = annualEventText(rec, opts, status, audience);
+      // 家庭用は、保護者来校の行事だけ太字・大きめにする(年間の行事欄は 8pt)
+      const evRuns = audience==='family' ? parentVisitRuns(rec, evText, 8) : null;
+      grid[rIdx][base+2] = evRuns ? {runs:evRuns, style:lS} : {v:evText, style:lS};
     }
     const sumRowBase = r0+1+maxDim;
     // ラベルの文字数(2字/3字)と数値の桁数がそろわないと①②③(④)の位置がずれるため、
@@ -3534,8 +3547,11 @@ function renderMonthlyPreview(opts){
     cols.forEach(c=>{
       if(c.key==='events'){
         const effAnnual = effectiveEventsAnnual(rec, status);
-        const annual = effAnnual ? `<span class="pv-annual">${escapeHtml(effAnnual)}</span>` : '';
-        const monthly = rec.eventsMonthly ? escapeHtml(rec.eventsMonthly) : '';
+        // 家庭用は、保護者来校の行事だけ太字・大きめにする(.pv-parent)
+        const fam = opts.audience==='family';
+        const esc = t => fam ? parentVisitHtml(rec, t) : escapeHtml(t);
+        const annual = effAnnual ? `<span class="pv-annual">${esc(effAnnual)}</span>` : '';
+        const monthly = rec.eventsMonthly ? esc(rec.eventsMonthly) : '';
         const parts = [annual, monthly];
         if(opts.audience==='teacher' && rec.eventsTeacherOnly){
           parts.push(`<span class="pv-teacheronly">${escapeHtml(rec.eventsTeacherOnly)}</span>`);
@@ -4562,6 +4578,37 @@ function buildAnnualEventParts(rec, opts, status, audience){
   if(!opts.keepPeriods) parts.forEach(p=>{ if(p.cls!=='meeting') p.text = stripPeriodPrefixes(p.text); });
   return parts.filter(p=>p.text);
 }
+// 保護者が来校する行事(予定入力の右側の入力欄の「保護者来校」のチェック。rec.parentVisit に行事名で持つ)。
+// 家庭用の予定表(年間・月間、画面と Excel)で、その行事だけを太字・1.2倍の大きさにする(2026-10-30。ユーザーと決めた大きさ)。
+const PARENT_VISIT_SCALE = 1.2;
+function isParentVisitItem(rec, item){
+  const t = String(item||'').trim();
+  if(!t || !rec.parentVisit) return false;
+  // 年間予定表では頭の①②を消して出すので、消したあとの名前とも比べる
+  return rec.parentVisit.some(p=>p===t || stripPeriodPrefixes(p)===t);
+}
+// 画面用: 全角スペースで区切った行事のうち、保護者来校の行事を <span class="pv-parent"> で囲む(エスケープ済みの HTML を返す)
+function parentVisitHtml(rec, text){
+  return String(text||'').split('　').map(t=>{
+    const h = escapeHtml(t);
+    return isParentVisitItem(rec, t) ? `<span class="pv-parent">${h}</span>` : h;
+  }).join('　');
+}
+// Excel 用: 保護者来校の行事があれば、その行事だけ太字・大きめにした runs(buildSheetXml の cell.runs)を返す。無ければ null
+function parentVisitRuns(rec, text, baseSz){
+  const tokens = String(text||'').split(/(　|\n)/).filter(t=>t!=='');
+  const isItem = t => t!=='　' && t!=='\n';
+  if(!tokens.some(t=>isItem(t) && isParentVisitItem(rec, t))) return null;
+  const big = Math.round(baseSz*PARENT_VISIT_SCALE*2)/2; // 0.5pt 刻みにする(8pt→9.5pt、9pt→11pt)
+  const runs = [];
+  tokens.forEach(t=>{
+    const pv = isItem(t) && isParentVisitItem(rec, t);
+    const last = runs[runs.length-1];
+    if(!pv && last && !last.bold) last.text += t; // 普通の部分は1つにまとめる
+    else runs.push({ text:t, sz: pv ? big : baseSz, bold: pv });
+  });
+  return runs;
+}
 // 「①②始業式　③避難訓練」→「始業式　避難訓練」。行事(全角スペース区切り)ごとに、頭の①〜⑥だけを消す。
 // 行事名の途中の丸数字(例:「準備出勤①」)は消さない。丸数字だけの行事は、そのまま残す。
 const PERIOD_MARKS = '①②③④⑤⑥';
@@ -4573,7 +4620,7 @@ function stripPeriodPrefixes(text){
 }
 function annualEventHtml(rec, opts, status, audience){
   return buildAnnualEventParts(rec, opts, status, audience).map(p=>{
-    const t = escapeHtml(p.text);
+    const t = audience==='family' ? parentVisitHtml(rec, p.text) : escapeHtml(p.text); // 家庭用は保護者来校の行事を強調
     if(p.cls==='annual') return `<span class="pv-annual">${t}</span>`;
     if(p.cls==='teacheronly') return `<span class="pv-teacheronly">${t}</span>`;
     if(p.cls==='meeting') return `<span class="pv-meetingnote">◆${t}</span>`;
@@ -5131,6 +5178,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-30</strong>: 保護者が来校する行事を目立たせられるようにしました。予定入力の右側の入力欄で、行事ごとの「保護者来校」にチェックすると、家庭用の年間予定表・月間予定表(画面・Excel)で、その行事だけが太字・1.2倍の大きさになります。予定入力の表では、その行事が太字で表示されます(教員のみの行事には付けられません)。</li>
     <li><strong>2026-10-27</strong>: 学校行事等に「何時間目の行事か」を付けられるようにしました。予定入力の右側の入力欄で、行事ごとの①〜⑥のボタンを押すと、行事名の頭に「①②始業式」のように付きます。月間予定表にはそのまま出て、年間予定表(画面・Excel)では頭の①〜⑥だけを消して「始業式」と出します。</li>
     <li><strong>2026-10-27</strong>: 予定入力の学校行事等の見分け方を変更。文字の色で「だれ向けか」(黒=全体、緑=教員のみ)、薄い黄色の囲みで「年間予定表にも載るか」を表します(以前は、年間かどうかを太字で表していたため、教員のみの行事で年間と月間の違いが分かりにくかった)。表で選んでいる日の行は、黄色とまぎれないよう薄い青にしました。</li>
     <li><strong>2026-10-27</strong>: 「年間予定表」タブのチェックの名前を、予定入力のチェックに合わせて「「月間」だけにチェックした行事も載せる」「「教員のみ」で「月間」にチェックした行事も載せる」に変更(働きは同じです)。予定入力で範囲を選んでコピーしたとき、最初にクリックしたマス(給食・放課後・①〜⑥・週番など候補が出る欄)だけ空でコピーされることがあった問題を直しました。</li>
@@ -5256,6 +5304,7 @@ document.getElementById('helpBody').innerHTML = `
     <li>「企画会議」「職員会議」はチェックボックスで入れられます。チェックすると、教員用の会議・出張・研修欄に自動的に「企画会議」「職員会議」の文字が追加されます(自由入力の内容と合わせて表示されます)。</li>
     <li>「掃除」もチェックボックスです。何もしなければ平日は「あり」、土曜・日曜・祝日は「なし」に自動でなります。手動でチェックを変更した場合はその状態が優先されます。月間予定表(教員用・家庭用)には「掃除」欄があり、いずれかの学年が登校日で、かつ「なし」の日だけ×が表示されます(それ以外は空欄。全学年とも登校日でない日は、掃除の有無にかかわらず空欄になります)。</li>
     <li>「放課後」欄も、空欄のまま=「活動あり」として扱われます。活動がない日や、再登校の時刻など特記事項がある日だけ「×」「再登校15:00〜」のように入力してください。従来通り自由な文章の入力もできます。</li>
+    <li>保護者が来校する行事(授業参観・保護者会など)は、右側のパネルで、その行事の「保護者来校」にチェックします。家庭用の年間予定表・月間予定表(画面・Excel)で、その行事だけが太字・1.2倍の大きさになります。予定入力の表では太字で表示されます。教員のみの行事には付けられません。</li>
     <li>何時間目の行事かを月間予定表に出したいときは、右側のパネルで、その行事の「時限(月間だけに表示)」の①〜⑥を押します。行事名の頭に「①②始業式」のように付き、月間予定表にはそのまま、年間予定表(画面・Excel)では頭の①〜⑥を除いて「始業式」と出ます(もう一度押すと外れます。行事名に直接「①②」と打ち込んでも同じです。行事名の途中の丸数字は消えません)。</li>
     <li>右側のパネルでは、「＋ 行事を足す」で行事を増やし、✕で消せます。入力やチェックを変えると、すぐに保存の対象になります(すぐなら Ctrl+Z で元に戻せます)。「候補から選ぶ」で、日程が決まっていない行事などをあらかじめ候補にしておき、日程が決まったら「選択」でその日に入れられます(「月間」の行事として入るので、必要ならチェックを変えてください)。行事の「候補に追加」で候補に登録できます。候補は削除するまで残り、複数の日で繰り返し使えます(一度選んだ候補は既定では一覧から隠れますが、「使用済みを隠す」のチェックを外せば薄い表示で確認でき、使用回数も分かります)。</li>
     <li>「設定」タブの年度の下にある「(前年度)の行事を候補に追加」ボタンを押すと、前年度分の学校行事等(年間・月間・教員のみのすべて)に入力済みの内容をまとめて候補に登録できます。年度を切り替えて新しい年度の予定を組む際に便利です(既にある候補と同じ内容は追加されません)。祝日(国民の祝日)の日は対象外です。1つの欄に複数の行事が全角スペース区切りで入っている場合(例:「朝礼　一斉委員会」)は、項目ごとに別々の候補として登録されます。</li>
@@ -5416,24 +5465,31 @@ function eventItemsOf(rec, status){
     else items.push({ text:t, annual:false, monthly:true, teacher:true });
   });
   taLeft.forEach(t=>items.push({ text:t, annual:true, monthly:false, teacher:true }));
+  // 保護者来校のチェック(2026-10-30。教員のみの行事は家庭用に出ないので付けない)
+  const pv = rec.parentVisit || [];
+  items.forEach(it=>{ it.parent = !it.teacher && pv.includes(it.text); });
   return items;
 }
 function writeEventItems(dateKey, items){
   const f = { eventsAnnual:[], eventsMonthly:[], eventsTeacherOnly:[], eventsTeacherOnlyAnnual:[] };
+  const pv = [];
   items.forEach(it=>{
     // 全角スペースは行事の区切りに使うので、行事の名前の中では半角スペースにする
     const t = String(it.text||'').replace(/　/g,' ').trim();
     if(!t) return;
-    if(!it.teacher){ (it.annual ? f.eventsAnnual : f.eventsMonthly).push(t); }
+    if(!it.teacher){ (it.annual ? f.eventsAnnual : f.eventsMonthly).push(t); if(it.parent && !pv.includes(t)) pv.push(t); }
     else {
       if(it.monthly || !it.annual) f.eventsTeacherOnly.push(t);
       if(it.annual) f.eventsTeacherOnlyAnnual.push(t);
     }
   });
+  // 保護者来校の行事名を先に入れてから4つの欄を書く(欄を書くたびに、空の日は消える(pruneIfEmpty)ため)
+  if(!state.days[dateKey]) state.days[dateKey] = emptyDayRecord();
+  state.days[dateKey].parentVisit = pv;
   Object.keys(f).forEach(k=>setFieldValue(dateKey, k, f[k].join('　')));
 }
 // 予定入力の表のマスで、行事の種類を見分けるためのクラス(CSS の .ev-m=全体・.ev-t=教員のみ の文字色と、.ev-y=年間にも載る の黄色の囲み)
-function eventItemClass(it){ return (it.teacher ? 'ev-t' : 'ev-m') + (it.annual ? ' ev-y' : ''); }
+function eventItemClass(it){ return (it.teacher ? 'ev-t' : 'ev-m') + (it.annual ? ' ev-y' : '') + (it.parent && !it.teacher ? ' ev-p' : ''); } // ev-p=保護者来校(太字)
 // 行事名の頭の時限(①〜⑥)。「①②始業式」→「①②」
 function periodPrefixOf(text){ const m = String(text||'').match(/^[①②③④⑤⑥]+/); return m ? m[0] : ''; }
 // 時限のボタンを押したとき: 頭の時限に、その丸数字を足す/外す(①〜⑥の順に並べ直す)
@@ -5446,7 +5502,7 @@ function togglePeriodPrefix(text, mark){
 }
 function eventItemLabel(it){
   const where = it.annual && it.monthly ? '年間・月間' : it.annual ? '年間のみ' : '月間のみ';
-  return (it.teacher ? '教員のみ・' : '') + where;
+  return (it.teacher ? '教員のみ・' : '') + where + (it.parent && !it.teacher ? '・保護者来校' : '');
 }
 
 let evPanelKey = null;    // パネルで開いている日('YYYY-MM-DD')。閉じているときは null
@@ -5515,6 +5571,7 @@ function setEventItemFlag(it, flag, on){
   if(flag==='annual'){ it.annual = on; if(on) it.monthly = true; }
   else if(flag==='monthly'){ it.monthly = on; }
   else if(flag==='teacher'){ it.teacher = on; }
+  else if(flag==='parent'){ it.parent = on; }
   if(!it.teacher && it.annual) it.monthly = true;
   if(!it.annual && !it.monthly) it.monthly = true;
 }
@@ -5554,6 +5611,7 @@ function renderEventPanel(){
         <label><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="annual" ${it.annual?'checked':''} ${dis}>年間</label>
         <label title="${monthLock?'全体の行事は、年間に載せると月間にも載ります':''}"><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="monthly" ${it.monthly?'checked':''} ${dis||(monthLock?'disabled':'')}>月間</label>
         <label><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="teacher" ${it.teacher?'checked':''} ${dis}>教員のみ</label>
+        <label title="家庭用の予定表(年間・月間)で、この行事を太字・大きめにします(教員のみの行事には付けられません)"><input type="checkbox" class="ev-flag" data-idx="${i}" data-flag="parent" ${it.parent && !it.teacher?'checked':''} ${dis||(it.teacher?'disabled':'')}>保護者来校</label>
         <span class="ev-where">→ ${escapeHtml(eventItemLabel(it))}</span>
         <button type="button" class="ghost tiny ev-item-cand" data-idx="${i}" ${dis}>候補に追加</button>
       </div>
@@ -5565,7 +5623,7 @@ function renderEventPanel(){
   });
   html += `<button type="button" class="ghost tiny" id="evAddItem" ${dis}>＋ 行事を足す</button> <span id="evPanelMsg" class="ev-msg"></span>`;
   html += `<div class="ev-legend"><span class="ev-m ev-y">全体・年間</span><span class="ev-m">全体・月間のみ</span><span class="ev-t ev-y">教員のみ・年間</span><span class="ev-t">教員のみ・月間のみ</span></div>`
-    + `<p class="ev-note" style="margin-top:4px;">文字の色: 黒=全体、緑=教員のみ。黄色の囲み=年間予定表にも載る行事。</p>`;
+    + `<p class="ev-note" style="margin-top:4px;">文字の色: 黒=全体、緑=教員のみ。黄色の囲み=年間予定表にも載る行事。太字=保護者来校(家庭用の予定表で太字・大きめになる)。</p>`;
   html += `<h4 class="ev-sub">候補から選ぶ</h4>
     <p class="ev-note" style="margin-top:0;">日程が決まっていない行事などを候補にしておき、日程が決まったらここから選べます。選ぶと「月間」の行事として入るので、必要ならチェックを変えてください。</p>
     <div class="field-row" style="margin-bottom:6px;gap:10px;">
