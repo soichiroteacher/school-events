@@ -239,3 +239,9 @@ Excel出力の関数(`exportTeacherMonthlyXlsx`等)は内部で`downloadBytes(by
 - 変更後は必ずBrowser paneで実際にアプリを動かして確認する(コンソールエラーの有無、対象機能の動作、既存機能への影響)。見た目だけでなく`javascript_exec`で`state`の中身も検証すること。
 - 変更のたびに、appcopyへのミラーコピーとGitHubへのcommit+pushを行う(上記「Git / GitHub運用ルール」参照)。
 - **アプリ内の更新履歴を必ず更新する**: 「使い方 / マニュアル」モーダル(`helpBody`のinnerHTML、`<h4>更新履歴</h4>`の直後にある`<ul class="changelog">`)に、ユーザー向けの平易な言葉で1行追記する(実装の詳細ではなく「何ができるようになったか」を書く)。日付は`YYYY-MM-DD`形式。ユーザーがGitHubのコミット履歴を見なくても、アプリを開くだけで変更内容を確認できるようにするための機能なので、機能追加・不具合修正のたびに欠かさず追記すること。
+
+## 編集中の表示と編集の記録(2026-10-30)
+
+- 共通ルール ../CLAUDE.md の節に沿う。`editLock` は `{active, since, by, session}`、`editLog` は `[{by,start,end}]`(新しい順・200件)。`normalizeState` で古いファイルを補う。
+- 名前は localStorage `schoolEvents.editorName`。`submitPasswordUnlock` で記録を足し、`writeToHandle` で `end` を更新。見本中(`sampleMode`)は記録しない。失効は `EDIT_LOCK_STALE_MS`=15分。
+- このアプリには画面ガイド(順に囲む案内)がまだない。説明はアプリ内マニュアルの更新履歴と README のみ。画面ガイドを作るときに名前入力と「編集の記録」を入れること。

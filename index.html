@@ -260,6 +260,8 @@
   .modal-head h3{margin:0;font-size:15px;}
   .modal-body{padding:16px 18px;max-height:72vh;overflow-y:auto;}
   .modal-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;}
+  table.edit-log-table{border-collapse:collapse;width:100%;font-size:13.5px;}
+  table.edit-log-table th, table.edit-log-table td{border:1px solid var(--line-soft);padding:5px 8px;text-align:left;}
   #helpBody h4{color:var(--accent);margin:16px 0 6px;font-size:13.5px;}
   #helpBody p, #helpBody li{font-size:13px;line-height:1.7;color:var(--ink);}
   #helpBody pre{background:#f2f4f5;border:1px solid var(--line-soft);border-radius:6px;padding:10px 12px;font-size:12px;white-space:pre-wrap;line-height:1.6;}
@@ -368,6 +370,7 @@
     <button id="btnSaveAs" disabled>名前を付けて保存</button>
     <button id="btnSave" class="primary" disabled>保存</button>
     <button id="btnUnlock">🔒 編集する</button>
+    <button id="btnEditLog" class="ghost">編集の記録</button>
     <button id="btnHelp" class="ghost">使い方 / マニュアル</button>
     <span id="appVersionTag" class="version-tag" title="アプリのバージョン"></span>
   </div>
@@ -875,11 +878,14 @@
 <div class="overlay" id="pwOverlay">
   <div class="modal" style="max-width:380px;">
     <div class="modal-head">
-      <h3>編集パスワードの入力</h3>
+      <h3>編集を始める</h3>
       <button class="ghost" id="pwModalClose">✕ 閉じる</button>
     </div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--ink-soft);margin-top:0;">このアプリは閲覧のみ誰でもできますが、入力・設定変更・保存には編集パスワードが必要です。</p>
+      <label style="font-size:13px;">名前(ほかの先生の画面に「○○先生が編集中」と出ます)</label>
+      <input type="text" id="pwNameInput" placeholder="例:山田" style="width:100%;font-size:15px;padding:8px;margin:4px 0 10px;" autocomplete="off">
+      <label style="font-size:13px;">編集パスワード</label>
       <input type="password" id="pwInput" placeholder="パスワード" style="width:100%;font-size:15px;padding:8px;" autocomplete="off">
       <p id="pwError" style="color:#c0392b;font-size:12.5px;display:none;margin:6px 0 0;">パスワードが違います。</p>
     </div>
@@ -887,6 +893,14 @@
       <button id="pwCancel">キャンセル</button>
       <button class="primary" id="pwSubmit">解除する</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="editLogOverlay">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head"><h3>編集の記録(新しい順)</h3><button class="ghost" id="editLogClose">✕ 閉じる</button></div>
+    <div class="modal-body" id="editLogBody"></div>
+    <div class="modal-foot" style="font-size:12.5px;color:var(--ink-soft);">だれが・いつ編集したかだけを記録しています(何を変えたかは記録しません)。新しいものから200件まで残ります。</div>
   </div>
 </div>
 
@@ -919,7 +933,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-30 12:00';
+const APP_VERSION = '2026-10-30 15:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -994,7 +1008,8 @@ function emptyState(){
     mealCountOverrides:{}, // "YYYY-MM-DD" -> {g1:bool,g2:bool,g3:bool} 宿泊行事等で給食○ではないが喫食したものとして数える例外(時数・集計タブの一覧から設定)
     printCounts:[],      // 印刷部数の履歴ログ。{id, date:"YYYY-MM-DD", target:'staff'|'student', staffName:'', count:0, note:''}
     eventHourEntries:[], // 授業枠に載らない行事の時数を自由記述で手入力する一覧。{id, label:'', hours:0}(時数・集計タブの「学校行事の回数」に合算)
-    editLock:{ active:false, since:null }, // 職場サーバー等で共有した場合の簡易ロック表示用。編集モード中は自動保存のたびにsinceを更新し、一定時間更新がなければ失効扱いにする
+    editLog:[],          // 編集の記録。誰が・いつ編集したかだけ。{by, start, end}(ISO文字列)。新しい順に200件まで(共通ルール)
+    editLock:{ active:false, since:null, by:'', session:'' }, // 職場サーバー等で共有した場合の簡易ロック表示用。編集モード中は自動保存のたびにsinceを更新し、一定時間更新がなければ失効扱いにする
     days:{},             // "YYYY-MM-DD" -> dayRecord
     presets: defaultPresets(),
     colWidths:{},         // 列key -> 幅(px)。未指定は既定値を使用
@@ -1087,7 +1102,11 @@ function normalizeState(obj){
   else {
     obj.editLock.active = !!obj.editLock.active;
     if(typeof obj.editLock.since !== 'string') obj.editLock.since = null;
+    if(typeof obj.editLock.by !== 'string') obj.editLock.by = '';        // 古いファイルには名前がない
+    if(typeof obj.editLock.session !== 'string') obj.editLock.session = '';
   }
+  // 編集の記録(2026-10-30 追加)。古いファイルにはないので空の記録にする
+  obj.editLog = Array.isArray(obj.editLog) ? obj.editLog.filter(e=>e && typeof e==='object' && typeof e.start==='string').map(e=>({ by:String(e.by||''), start:e.start, end:typeof e.end==='string'?e.end:e.start })).slice(0,200) : [];
   if(!obj.requiredHours){ obj.requiredHours = defaultRequiredHours(); }
   else {
     const def = defaultRequiredHours();
@@ -1402,7 +1421,23 @@ function setStatus(text, cls){
 }
 // 共有サーバー等に置いた場合の簡易ロック表示用。この時間以上sinceが更新されていなければ
 // (=編集中の人が保存もクローズもしないまま離席した等)、失効したものとして扱う。
-const EDIT_LOCK_STALE_MS = 10*60*1000;
+const EDIT_LOCK_STALE_MS = 15*60*1000; // 共通ルールに合わせて15分
+// この画面の識別(自分の編集中の印かどうかを見分けるため)
+const EDIT_SESSION_ID = Math.random().toString(36).slice(2,10);
+let sampleMode = false;      // 見本データで試している間は、編集の記録を残さない
+let myEditLogEntry = null;   // 今の編集で足した記録(保存のたびに end を更新する)
+const EDITOR_NAME_KEY = 'schoolEvents.editorName';
+function loadEditorName(){ try{ return localStorage.getItem(EDITOR_NAME_KEY)||''; }catch(e){ return ''; } }
+function saveEditorName(n){ try{ localStorage.setItem(EDITOR_NAME_KEY, n); }catch(e){} }
+function fmtLogTime(iso){ const d=new Date(iso); if(isNaN(d)) return ''; return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+function openEditLogModal(){
+  const log = (state.editLog||[]);
+  const body = document.getElementById('editLogBody');
+  body.innerHTML = log.length ? '<table class="edit-log-table"><tr><th>名前</th><th>日付・始めた時刻</th><th>最後に保存した時刻</th></tr>'+
+    log.map(e=>{ const en=new Date(e.end); return `<tr><td>${escapeHtml(e.by||'(名前なし)')}</td><td>${fmtLogTime(e.start)}</td><td>${isNaN(en)?'':pad2(en.getHours())+':'+pad2(en.getMinutes())}</td></tr>`; }).join('')+'</table>'
+    : '<p>まだ記録はありません。</p>';
+  document.getElementById('editLogOverlay').classList.add('show');
+}
 function isEditLockFresh(lock){
   if(!lock || !lock.active || !lock.since) return false;
   const since = new Date(lock.since).getTime();
@@ -1451,6 +1486,7 @@ async function writeToHandle(handle){
   }
   saveConflict = false;
   stampSaveMeta();
+  if(myEditLogEntry && !sampleMode) myEditLogEntry.end = new Date().toISOString();
   const writable = await handle.createWritable();
   await writable.write(stateToText(state));
   await writable.close();
@@ -1873,6 +1909,12 @@ function downloadBytes(bytes, filename){
 function generateSampleState(){
   const s = emptyState();
   s.meta.schoolName = 'サンプル中学校';
+  // 「編集の記録」を見本でも試せるよう、架空の名前の記録を入れておく
+  s.editLog = [
+    { by:'見本 花子', start:'2026-04-10T15:20:00+09:00', end:'2026-04-10T15:48:00+09:00' },
+    { by:'試験 太郎', start:'2026-04-08T16:05:00+09:00', end:'2026-04-08T16:30:00+09:00' },
+    { by:'見本 花子', start:'2026-04-03T10:12:00+09:00', end:'2026-04-03T11:02:00+09:00' }
+  ];
   s.meta.fiscalYear = 2026;
   const Y = 2026;
   const day = (m,d) => dkey(Y + (m>=4?0:1), m, d);
@@ -2034,6 +2076,7 @@ function loadSampleDataInMemory(){
   // サンプルデータが誤って上書きされてしまう恐れがあるため。
   fileHandle = null;
   editUnlocked = false;
+  sampleMode = true; myEditLogEntry = null;
   dirty = false;
   setStatus('サンプルデータ(未保存・保存先は未設定です)', 'dirty');
   setCurrentFileDisplay('(サンプルデータ・保存先未設定)');
@@ -2241,6 +2284,7 @@ function loadStateFromText(text){
     Object.keys(obj.days).forEach(k=>{ obj.days[k] = migrateDayRecord(obj.days[k]); });
     normalizeState(obj);
     state = obj;
+    sampleMode = false; myEditLogEntry = null;
     holidayCache = {};
     clearSelection();
     resetUndoHistory();
@@ -5178,6 +5222,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-10-30</strong>: 「編集する」を押したときに名前を入れるようにしました。ほかの先生の画面には「○○先生が編集中」と出ます。上の「編集の記録」ボタンで、だれが・いつ編集したか(始めた時刻〜最後に保存した時刻)を新しい順に見られます(何を変えたかは記録しません)。</li>
     <li><strong>2026-10-30</strong>: 保護者が来校する行事を目立たせられるようにしました。予定入力の右側の入力欄で、行事ごとの「保護者来校」にチェックすると、家庭用の年間予定表・月間予定表(画面・Excel)で、その行事だけが太字・1.2倍の大きさになります。予定入力の表では、その行事が太字で表示されます(教員のみの行事には付けられません)。</li>
     <li><strong>2026-10-27</strong>: 学校行事等に「何時間目の行事か」を付けられるようにしました。予定入力の右側の入力欄で、行事ごとの①〜⑥のボタンを押すと、行事名の頭に「①②始業式」のように付きます。月間予定表にはそのまま出て、年間予定表(画面・Excel)では頭の①〜⑥だけを消して「始業式」と出します。</li>
     <li><strong>2026-10-27</strong>: 予定入力の学校行事等の見分け方を変更。文字の色で「だれ向けか」(黒=全体、緑=教員のみ)、薄い黄色の囲みで「年間予定表にも載るか」を表します(以前は、年間かどうかを太字で表していたため、教員のみの行事で年間と月間の違いが分かりにくかった)。表で選んでいる日の行は、黄色とまぎれないよう薄い青にしました。</li>
@@ -5396,7 +5441,7 @@ function applyLockUI(){
   if(!editUnlocked && isEditLockFresh(state.editLock)){
     const since = new Date(state.editLock.since);
     const hh = pad2(since.getHours()), mm = pad2(since.getMinutes());
-    warnEl.textContent = `⚠ 他の場所で編集中(${hh}:${mm}〜)`;
+    warnEl.textContent = state.editLock.by ? `⚠ ${state.editLock.by}先生が編集中(${hh}:${mm}〜)` : `⚠ 他の場所で編集中(${hh}:${mm}〜)`;
     warnEl.hidden = false;
   } else {
     warnEl.hidden = true;
@@ -5404,6 +5449,7 @@ function applyLockUI(){
 }
 function openPasswordModal(){
   document.getElementById('pwInput').value = '';
+  document.getElementById('pwNameInput').value = loadEditorName();
   document.getElementById('pwError').style.display = 'none';
   document.getElementById('pwOverlay').classList.add('show');
   setTimeout(()=> document.getElementById('pwInput').focus(), 50);
@@ -5797,7 +5843,7 @@ document.getElementById('btnResetColors').addEventListener('click', ()=>{
 
 document.getElementById('btnUnlock').addEventListener('click', ()=>{
   if(editUnlocked){
-    state.editLock = { active:false, since:null };
+    state.editLock = { active:false, since:null, by:'', session:'' };
     markDirty(); // editUnlockedがまだtrueのうちに呼び、ロック解除を保存対象にする
     editUnlocked = false;
     applyLockUI();
@@ -5810,9 +5856,15 @@ document.getElementById('pwCancel').addEventListener('click', closePasswordModal
 document.getElementById('pwModalClose').addEventListener('click', closePasswordModal);
 document.getElementById('pwSubmit').addEventListener('click', submitPasswordUnlock);
 document.getElementById('pwInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPasswordUnlock(); });
+document.getElementById('pwNameInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') document.getElementById('pwInput').focus(); });
+document.getElementById('btnEditLog').addEventListener('click', openEditLogModal);
+document.getElementById('editLogClose').addEventListener('click', ()=> document.getElementById('editLogOverlay').classList.remove('show'));
 
 async function submitPasswordUnlock(){
   const val = document.getElementById('pwInput').value;
+  const editorName = document.getElementById('pwNameInput').value.trim();
+  if(!editorName){ const er=document.getElementById('pwError'); er.textContent='名前を入れてください。'; er.style.display='block'; document.getElementById('pwNameInput').focus(); return; }
+  document.getElementById('pwError').textContent = 'パスワードが違います。';
   const hash = await sha256Hex(val);
   if(hash === state.meta.editPasswordHash){
     // 職場サーバー等で共有している場合、他の場所で編集中でないかをファイルから直接確認する
@@ -5824,7 +5876,8 @@ async function submitPasswordUnlock(){
         const fresh = JSON.parse(freshText);
         if(isEditLockFresh(fresh.editLock)){
           const mins = Math.max(1, Math.round((Date.now() - new Date(fresh.editLock.since).getTime())/60000));
-          const proceed = confirm(`⚠ 警告: 現在、別の場所でこのファイルが編集中です(${mins}分前から)。\n\nこのまま編集を始めると、相手が入力した内容が上書きされて失われるおそれがあります。\n\n本当にこのまま編集を続けますか？`);
+          const who = fresh.editLock.by ? fresh.editLock.by+'先生が' : '別の場所で';
+          const proceed = confirm(`⚠ 警告: 現在、${who}このファイルを編集中です(${mins}分前から)。\n\nこのまま編集を始めると、相手が入力した内容が上書きされて失われるおそれがあります。\n\n本当にこのまま編集を続けますか？`);
           if(!proceed){ document.getElementById('pwInput').value=''; return; }
         }
         // 開いたあとにほかの場所で保存されていたら、その最新の内容から編集を始める。
@@ -5836,7 +5889,14 @@ async function submitPasswordUnlock(){
       }catch(e){ /* 読み直しに失敗した場合は確認をスキップして続行する */ }
     }
     editUnlocked = true;
-    state.editLock = { active:true, since:new Date().toISOString() };
+    saveEditorName(editorName);
+    const nowIso = new Date().toISOString();
+    state.editLock = { active:true, since:nowIso, by:editorName, session:EDIT_SESSION_ID };
+    // 編集の記録を1件足す(見本では記録しない)。新しい順に200件まで
+    if(!sampleMode){
+      myEditLogEntry = { by:editorName, start:nowIso, end:nowIso };
+      state.editLog = [myEditLogEntry].concat(state.editLog||[]).slice(0,200);
+    }
     closePasswordModal();
     applyLockUI();
     refreshAll();
