@@ -455,6 +455,7 @@
       <div class="spacer"></div>
       <button id="btnPrintAnnualTeacher" hidden>🖨 PDFで保存/印刷</button>
       <button id="btnExportAnnualTeacherXlsx">Excelに出力</button>
+      <button id="btnIcsTeacher" title="Googleカレンダーなどに取り込めるファイル(.ics)を書き出します">📅 Googleカレンダー用に書き出す</button>
     </div>
     <div class="annual-opts" id="annualOptsTeacher">
       <span class="annual-opts-label">表示する情報:</span>
@@ -474,6 +475,7 @@
       <div class="spacer"></div>
       <button id="btnPrintAnnualFamily" hidden>🖨 PDFで保存/印刷</button>
       <button id="btnExportAnnualFamilyXlsx">Excelに出力</button>
+      <button id="btnIcsFamily" title="Googleカレンダーなどに取り込めるファイル(.ics)を書き出します">📅 Googleカレンダー用に書き出す</button>
     </div>
     <div class="annual-opts" id="annualOptsFamily">
       <span class="annual-opts-label">表示する情報:</span>
@@ -896,6 +898,36 @@
   </div>
 </div>
 
+<div class="overlay" id="icsOverlay">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head"><h3>Googleカレンダー用に書き出す</h3><button class="ghost" id="icsClose">✕ 閉じる</button></div>
+    <div class="modal-body" style="font-size:14px;">
+      <div class="field-row"><strong style="min-width:70px;">対象</strong>
+        <label><input type="radio" name="icsAud" value="teacher"> 教員用(教員のみの行事も入れる)</label>
+        <label><input type="radio" name="icsAud" value="family"> 家庭用(教員のみの行事は入れない)</label>
+      </div>
+      <div class="field-row" style="margin-top:8px;"><strong style="min-width:70px;">期間</strong>
+        <select id="icsFrom"></select> 〜 <select id="icsTo"></select>
+      </div>
+      <div class="field-row" style="margin-top:8px;"><strong style="min-width:70px;">行事</strong>
+        <label><input type="checkbox" id="icsMonthly" checked> 「月間」だけにチェックした行事も入れる</label>
+      </div>
+      <p id="icsCount" style="color:var(--ink-soft);font-size:13px;"></p>
+      <div style="background:var(--accent-soft);border-radius:6px;padding:8px 12px;font-size:13px;line-height:1.7;">
+        <strong>Googleカレンダーへの取り込み方</strong>
+        <ol style="margin:4px 0 0;padding-left:20px;">
+          <li>「書き出す」を押して、ファイル(.ics)を保存します。</li>
+          <li>パソコンで Googleカレンダーを開き、右上の ⚙(設定)→「設定」→ 左の「インポート / エクスポート」を押します。</li>
+          <li>「パソコンからファイルを選択」で保存したファイルを選び、「カレンダーに追加」で入れる先のカレンダーを選んで「インポート」を押します。</li>
+        </ol>
+        <p style="margin:6px 0 0;">行事はすべて終日の予定になります。「年間」の行事は1つずつ別の予定に、それ以外の行事はその日ごとに1つにまとめます。<br>
+        同じ期間を書き出し直して取り込むと、同じ行事は重ならずに上書きされます。ただし、行事名を直した行事や消した行事は、カレンダーに古いものが残ります。きれいにしたいときは、取り込み用のカレンダーを1つ作っておき、それを消して作り直してから取り込んでください。</p>
+      </div>
+    </div>
+    <div class="modal-foot"><button id="icsCancel">キャンセル</button><button class="primary" id="icsExport">書き出す</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="editLogOverlay">
   <div class="modal" style="max-width:520px;">
     <div class="modal-head"><h3>編集の記録(新しい順)</h3><button class="ghost" id="editLogClose">✕ 閉じる</button></div>
@@ -933,7 +965,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-10-30 15:00';
+const APP_VERSION = '2026-11-03 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -5222,6 +5254,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-03</strong>: 年間予定表(教員用・家庭用)に「📅 Googleカレンダー用に書き出す」を追加しました。期間(月)と、教員用・家庭用を選んで書き出したファイル(.ics)を、Googleカレンダーの設定の「インポート」で取り込めます。「年間」の行事は1つずつ、それ以外の行事はその日ごとに1つにまとめた終日の予定になります。</li>
     <li><strong>2026-10-30</strong>: 「編集する」を押したときに名前を入れるようにしました。ほかの先生の画面には「○○先生が編集中」と出ます。上の「編集の記録」ボタンで、だれが・いつ編集したか(始めた時刻〜最後に保存した時刻)を新しい順に見られます(何を変えたかは記録しません)。</li>
     <li><strong>2026-10-30</strong>: 保護者が来校する行事を目立たせられるようにしました。予定入力の右側の入力欄で、行事ごとの「保護者来校」にチェックすると、家庭用の年間予定表・月間予定表(画面・Excel)で、その行事だけが太字・1.2倍の大きさになります。予定入力の表では、その行事が太字で表示されます(教員のみの行事には付けられません)。</li>
     <li><strong>2026-10-27</strong>: 学校行事等に「何時間目の行事か」を付けられるようにしました。予定入力の右側の入力欄で、行事ごとの①〜⑥のボタンを押すと、行事名の頭に「①②始業式」のように付きます。月間予定表にはそのまま出て、年間予定表(画面・Excel)では頭の①〜⑥だけを消して「始業式」と出します。</li>
@@ -5361,6 +5394,9 @@ document.getElementById('helpBody').innerHTML = `
     <li>「登校日」のチェックは、平日は自動でオン、土日・祝日は自動でオフになっています。実際と異なる場合(土曜授業を行う、逆に平日を休業日にするなど)は、その学年のチェックを直接つけ外ししてください。チェックを外すと、その学年の①〜⑥時限の欄は入力できなくなります。休みや特別な登校日の理由は「学校行事等(共通・年間)」などに書き添えてください。時数・集計タブの授業日数は、このチェックを元に計算されます。</li>
     <li>「メモ(根拠等)」列はボタンになっており、クリックすると複数行の文章を入力できる画面が開きます。ここに入力した内容は月間予定表(教員用)の画面に一覧表示され、Excel出力時は「メモも出力に含める」にチェックした場合のみ、説明資料として出力に追加されます(チェックしなければ出力には含まれません)。</li>
   </ul>
+
+  <h4>Googleカレンダーに取り込む</h4>
+  <p>「年間予定表」タブの「📅 Googleカレンダー用に書き出す」を押し、対象(教員用・家庭用)と期間(月)を選んで「書き出す」を押すと、カレンダー用のファイル(.ics)ができます。Googleカレンダーをパソコンで開き、⚙(設定)→「設定」→「インポート / エクスポート」で、そのファイルを選んで取り込みます。行事はすべて終日の予定になり、「年間」の行事は1つずつ、それ以外の行事(月間のみ・教員のみの月間)はその日ごとに1つにまとめます。祝日名(元日など)は入れません(Googleカレンダーの祝日と重なるため)。同じ期間を書き出し直して取り込むと、同じ行事は上書きされ、重なりません。ただし行事名を直した行事・消した行事は古いものがカレンダーに残るので、取り込み用のカレンダーを1つ作り、作り直してから取り込むときれいになります。</p>
 
   <h4>月間予定表(教員用・家庭用)の確認・Excel出力</h4>
   <p>「月間予定表」タブでは、上部の「教員用」「家庭用」ボタンで表示を切り替えられます(切り替えても表示中の月はそのままです)。教員用では、入力した内容から教員用の月間予定表を画面上で確認できます。学校行事等は「年間行事」「月のみ」「教員のみ」をすべて合わせて表示し、「年間行事」は太字、「教員のみ」は色分け(オレンジ系)で区別されます。週番は、同じ内容が連続する日をまとめて1つのセルに結合して表示します(内容が変わる日や休業日でそこは区切られます)。入力したメモは表の下に一覧で表示されます。「Excelに出力」ボタンを押すと出力する月を選ぶウィンドウが開き、チェックした月をそれぞれシートに分けた1つのExcelファイルとしてダウンロードできます(「今月のみ」「今月+翌月」「全12か月」のボタンですぐに選べます)。2枚目以降のシートを「参考」として区別するかどうかも選べるので、たとえば今月分と翌月分をまとめて出力・印刷して見比べる際に、どちらのシートか一目で分かるようにできます(白黒印刷でも分かるよう、色ではなくタイトルの「【参考】」の表示で区別します)。行の高さはすべて固定されており、長い文章を入力した場合は行が伸びるのではなく、セル内の文字が自動的に縮小されて1行に収まります(Microsoft Excelでの「縮小して全体を表示」機能を使用しています)。祝日・休業日の網掛けや集計行の色も、白黒プリンターでも判読できる濃さのグレーにしています。</p>
@@ -5936,6 +5972,114 @@ document.getElementById('btnChangePassword').addEventListener('click', async ()=
 document.getElementById('btnHelp').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.add('show'));
 document.getElementById('helpModalClose').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.remove('show'));
 document.getElementById('btnHelpClose2').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.remove('show'));
+
+//////////////////////// Googleカレンダー用の書き出し(.ics) ////////////////////////
+// iCalendar 形式(.ics)は Googleカレンダー・Outlook など多くのカレンダーが読み込める共通の形。
+// サーバーやログインが要らず、ファイルを書き出して各自がカレンダーに取り込むだけで済むため、この形にした(2026-11-03)。
+// 決めごと(ユーザーと合意):
+//  ・「年間」の行事は1件ずつ別の終日予定。それ以外(月間のみ・教員のみの月間)はその日ごとに1件にまとめる。
+//  ・UID(予定の識別)を日付と行事名から決めるので、書き出し直して取り込むと同じ予定は上書きされる(重ならない)。
+//    まとめた予定のUIDは日付だけで決めるので、中身を直しても上書きされる。
+//  ・祝日名の自動表示(元日など)は入れない(Googleカレンダーに祝日のカレンダーがあり、重なるため)。
+function icsEventsForDay(y, m, d, aud, includeMonthly){
+  const rec = state.days[dkey(y,m,d)];
+  if(!rec) return { annual:[], other:[] };
+  const items = eventItemsOf(migrateDayRecord(rec), null);
+  const annual = [], other = [];
+  items.forEach(it=>{
+    if(aud==='family' && it.teacher) return;
+    if(it.annual) annual.push(it.text);
+    else if(includeMonthly) other.push(it.text);
+  });
+  return { annual: annual.filter((t,i)=>annual.indexOf(t)===i), other };
+}
+function icsHash(str){ let h = 5381; for(const ch of str){ h = ((h*33) ^ ch.codePointAt(0)) >>> 0; } return h.toString(16); }
+function icsEscape(t){ return String(t).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n'); }
+// 1行は75バイトまで(それより長い行は折り返して、次の行の頭に空白を入れる決まり)。日本語は1文字3バイトなので文字の途中で切らない
+function icsFold(line){
+  const enc = new TextEncoder();
+  const out = []; let cur = '', bytes = 0;
+  for(const ch of line){
+    const b = enc.encode(ch).length;
+    if(bytes + b > (out.length ? 74 : 75)){ out.push(cur); cur = ''; bytes = 0; }
+    cur += ch; bytes += b;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+function icsMonthsInRange(fromIdx, toIdx){
+  return fiscalMonthList(state.meta.fiscalYear).slice(Math.min(fromIdx,toIdx), Math.max(fromIdx,toIdx)+1);
+}
+function buildIcsEvents(aud, fromIdx, toIdx, includeMonthly){
+  const evs = [];
+  icsMonthsInRange(fromIdx, toIdx).forEach(({year,month})=>{
+    for(let d=1; d<=daysInMonth(year,month); d++){
+      const { annual, other } = icsEventsForDay(year, month, d, aud, includeMonthly);
+      const ymd = `${year}${pad2(month)}${pad2(d)}`;
+      annual.forEach(t=> evs.push({ ymd, y:year, m:month, d, title:t, uid:`se-${aud}-${ymd}-${icsHash(t)}` }));
+      if(other.length) evs.push({ ymd, y:year, m:month, d, title:other.join('　'), uid:`se-${aud}-${ymd}-other` });
+    }
+  });
+  return evs;
+}
+function buildIcsText(aud, evs){
+  const now = new Date();
+  const stamp = now.getUTCFullYear()+pad2(now.getUTCMonth()+1)+pad2(now.getUTCDate())+'T'+pad2(now.getUTCHours())+pad2(now.getUTCMinutes())+pad2(now.getUTCSeconds())+'Z';
+  const calName = (state.meta.schoolName||'行事予定')+' 行事予定('+(aud==='teacher'?'教員用':'家庭用')+')';
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//school-events//行事予定管理//JA','CALSCALE:GREGORIAN','METHOD:PUBLISH',
+    'X-WR-CALNAME:'+icsEscape(calName),'X-WR-TIMEZONE:Asia/Tokyo'];
+  evs.forEach(e=>{
+    const next = new Date(e.y, e.m-1, e.d+1);
+    const end = `${next.getFullYear()}${pad2(next.getMonth()+1)}${pad2(next.getDate())}`;
+    lines.push('BEGIN:VEVENT','UID:'+e.uid+'@school-events','DTSTAMP:'+stamp,
+      'DTSTART;VALUE=DATE:'+e.ymd,'DTEND;VALUE=DATE:'+end,'SUMMARY:'+icsEscape(e.title),'TRANSP:TRANSPARENT','END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n')+'\r\n';
+}
+function icsReadForm(){
+  const audEl = document.querySelector('input[name="icsAud"]:checked');
+  return { aud: audEl ? audEl.value : 'teacher',
+    from: +document.getElementById('icsFrom').value, to: +document.getElementById('icsTo').value,
+    monthly: document.getElementById('icsMonthly').checked };
+}
+function updateIcsCount(){
+  const f = icsReadForm();
+  const n = buildIcsEvents(f.aud, f.from, f.to, f.monthly).length;
+  document.getElementById('icsCount').textContent = `この条件で ${n} 件の予定を書き出します。`;
+}
+function openIcsModal(aud){
+  const months = fiscalMonthList(state.meta.fiscalYear);
+  const opts = months.map((mo,i)=>`<option value="${i}">${mo.year}年${mo.month}月</option>`).join('');
+  const fromSel = document.getElementById('icsFrom'), toSel = document.getElementById('icsTo');
+  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  fromSel.value = '0'; toSel.value = String(months.length-1);
+  document.querySelectorAll('input[name="icsAud"]').forEach(r=>{ r.checked = r.value===aud; });
+  updateIcsCount();
+  document.getElementById('icsOverlay').classList.add('show');
+}
+function closeIcsModal(){ document.getElementById('icsOverlay').classList.remove('show'); }
+function exportIcs(){
+  const f = icsReadForm();
+  const evs = buildIcsEvents(f.aud, f.from, f.to, f.monthly);
+  if(!evs.length){ alert('この期間には、書き出す行事がありません。\n期間や「月間」のチェックを見直してください。'); return; }
+  const months = icsMonthsInRange(f.from, f.to);
+  const a0 = months[0], a1 = months[months.length-1];
+  const fname = `行事予定_${f.aud==='teacher'?'教員用':'家庭用'}_${a0.year}-${pad2(a0.month)}〜${a1.year}-${pad2(a1.month)}.ics`;
+  const blob = new Blob([buildIcsText(f.aud, evs)], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  closeIcsModal();
+}
+document.getElementById('btnIcsTeacher').addEventListener('click', ()=> openIcsModal('teacher'));
+document.getElementById('btnIcsFamily').addEventListener('click', ()=> openIcsModal('family'));
+document.getElementById('icsClose').addEventListener('click', closeIcsModal);
+document.getElementById('icsCancel').addEventListener('click', closeIcsModal);
+document.getElementById('icsExport').addEventListener('click', exportIcs);
+['icsFrom','icsTo','icsMonthly'].forEach(id=> document.getElementById(id).addEventListener('change', updateIcsCount));
+document.querySelectorAll('input[name="icsAud"]').forEach(r=> r.addEventListener('change', updateIcsCount));
 
 //////////////////////// ファイル操作ボタン ////////////////////////
 document.getElementById('btnOpen').addEventListener('click', doOpen);

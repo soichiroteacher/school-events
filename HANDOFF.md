@@ -245,3 +245,10 @@ Excel出力の関数(`exportTeacherMonthlyXlsx`等)は内部で`downloadBytes(by
 - 共通ルール ../CLAUDE.md の節に沿う。`editLock` は `{active, since, by, session}`、`editLog` は `[{by,start,end}]`(新しい順・200件)。`normalizeState` で古いファイルを補う。
 - 名前は localStorage `schoolEvents.editorName`。`submitPasswordUnlock` で記録を足し、`writeToHandle` で `end` を更新。見本中(`sampleMode`)は記録しない。失効は `EDIT_LOCK_STALE_MS`=15分。
 - このアプリには画面ガイド(順に囲む案内)がまだない。説明はアプリ内マニュアルの更新履歴と README のみ。画面ガイドを作るときに名前入力と「編集の記録」を入れること。
+
+## Googleカレンダー用の書き出し(.ics、2026-11-03)
+
+- 年間予定表タブの「📅 Googleカレンダー用に書き出す」→ `openIcsModal` → `buildIcsEvents` / `buildIcsText`。外部ライブラリなし。
+- 行事の振り分けは `eventItemsOf` を使う。年間(annual)は1件ずつ、それ以外は日ごとに1件にまとめる(ユーザーと合意)。家庭用は教員のみを除く。祝日名の自動表示は入れない。
+- UID は `se-{教員用/家庭用}-{日付}-{行事名のハッシュ}`(まとめた予定は `-other`)。書き出し直しても同じ予定は上書きされる。行事名を変えると別の予定になる。
+- 1行75バイトで折り返し(`icsFold`)、改行は CRLF。`*.ics` は .gitignore で除外。
