@@ -252,3 +252,10 @@ Excel出力の関数(`exportTeacherMonthlyXlsx`等)は内部で`downloadBytes(by
 - 行事の振り分けは `eventItemsOf` を使う。年間(annual)は1件ずつ、それ以外は日ごとに1件にまとめる(ユーザーと合意)。家庭用は教員のみを除く。祝日名の自動表示は入れない。
 - UID は `se-{教員用/家庭用}-{日付}-{行事名のハッシュ}`(まとめた予定は `-other`)。書き出し直しても同じ予定は上書きされる。行事名を変えると別の予定になる。
 - 1行75バイトで折り返し(`icsFold`)、改行は CRLF。`*.ics` は .gitignore で除外。
+
+## 横スクロールと見出しの固定(2026-11-16)
+
+- 共通ルール「UI のルール」に合わせた。予定入力の表は以前から上の横スクロールバーと見出しの固定がある(`syncTopScroll`)。
+- 月間・年間予定表の画面: `.preview-scroll` に高さ(`max-height: calc(100vh - 200px)`)を付け、枠の中でスクロールさせて、月間は `thead` と日・曜の列、年間は各月の見出しを sticky にした。年間の `.annual-month` は `overflow:clip`(hidden だと sticky が効かない)。曜の列の左の位置は `--pv-dow-left` で実測。印刷では sticky と高さを外す。
+- そのほかの横に長い一覧は `class="hscroll"` を付けるだけで、`attachTopScrolls`(MutationObserver で見張る)が上に横スクロールバーを付ける。今は実績の表(`.ag-scroll`)、実績の一覧、授業日数・授業週数。はみ出さないときはバーを隠す。
+- 注意: Browser pane が裏にあるとスクロールの合図が届かず、連動しないように見える。確かめるときは `dispatchEvent(new Event('scroll'))` を使う。

@@ -270,7 +270,21 @@
   .preview-title{font-size:16px;font-weight:700;margin-bottom:2px;}
   .preview-subtitle{font-size:14px;font-weight:600;margin-bottom:10px;}
   .pv-legend{font-size:9px;font-weight:400;color:var(--ink-soft);margin-left:8px;}
-  .preview-scroll{overflow-x:auto;border:1px solid #999;}
+  /* 月間・年間予定表の画面: 枠の中で縦にも横にもスクロールさせ、見出し(上の行・左の日付)を固定する(2026-11-16)。
+     sticky は一番近いスクロールする枠を基準に効くため、枠に高さを付ける。印刷では外す(下の @media print) */
+  .preview-scroll{overflow:auto;max-height:calc(100vh - 200px);border:1px solid #999;}
+  table.preview:not(.nmb-table) thead{position:sticky;top:0;z-index:3;}
+  table.preview:not(.nmb-table) thead th{background:#fff;}
+  table.preview:not(.nmb-table) td.pv-daynum, table.preview:not(.nmb-table) td.pv-dow,
+  table.preview:not(.nmb-table) thead th.pv-sticky-left{position:sticky;z-index:2;}
+  table.preview:not(.nmb-table) td.pv-daynum, table.preview:not(.nmb-table) thead th.pv-sticky-left:first-child{left:0;}
+  table.preview:not(.nmb-table) td.pv-dow, table.preview:not(.nmb-table) thead th.pv-sticky-left + th.pv-sticky-left{left:var(--pv-dow-left, 20px);}
+  table.preview:not(.nmb-table) tr:not(.pv-holiday):not(.pv-nonschool) td.pv-daynum,
+  table.preview:not(.nmb-table) tr:not(.pv-holiday):not(.pv-nonschool) td.pv-dow{background:#fff;}
+  table.annual-tbl thead th{position:sticky;top:0;z-index:2;}
+  /* 横スクロールが出る一覧(実績の表・時数の表など)の上に付ける横スクロールバー(attachTopScrolls が作る) */
+  .grid-topscroll.ts-auto{border-radius:var(--radius);border-bottom:1px solid var(--line);margin-bottom:2px;}
+  .grid-topscroll.ts-auto > div{height:1px;}
   table.preview{border-collapse:collapse;font-size:12px;table-layout:fixed;}
   table.preview th, table.preview td{border:1px solid #888;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:22px;box-sizing:border-box;}
   table.preview thead th{font-weight:600;text-align:center;font-size:11px;height:auto;white-space:normal;overflow:visible;}
@@ -306,7 +320,8 @@
   table.nmb-table td.pv-dow{width:20px;text-align:center;}
   table.nmb-table th:nth-child(1),table.nmb-table th:nth-child(2){width:20px;}
   .annual-row{display:flex;gap:8px;}
-  .annual-month{flex-shrink:0;width:190px;border:1px solid #999;border-radius:4px;overflow:hidden;display:flex;flex-direction:column;}
+  /* overflow:clip にしているのは、hidden だと月の見出し(sticky)がこの枠の中でしか固定されなくなるため */
+  .annual-month{flex-shrink:0;width:190px;border:1px solid #999;border-radius:4px;overflow:clip;display:flex;flex-direction:column;}
   .annual-opts{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--accent-soft);border:1px solid #bcd8d5;border-radius:6px;padding:7px 12px;margin-bottom:10px;font-size:12.5px;}
   .annual-opts-label{font-weight:600;color:var(--accent);white-space:nowrap;}
   .annual-opts label{display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;}
@@ -350,7 +365,8 @@
     header.appbar, nav.tabs, .month-head, #noFileBanner, .grid-topscroll, .annual-opts{display:none !important;}
     main{padding:0 !important;max-width:none !important;}
     .panel{border:none !important;box-shadow:none !important;padding:0 !important;}
-    .preview-scroll{border:none !important;overflow:visible !important;}
+    .preview-scroll{border:none !important;overflow:visible !important;max-height:none !important;}
+    table.preview thead, table.preview th, table.preview td{position:static !important;}
   }
   @page{ size: landscape; margin: 8mm; }
 </style>
@@ -942,7 +958,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-16 12:00';
+const APP_VERSION = '2026-11-16 15:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -3003,7 +3019,7 @@ function buildPreviewHeaderHTML(cols){
     if(gkey!==cur){ groups.push({label:glabel, span:0, grouped, vertical:c.vertical}); cur=gkey; }
     groups[groups.length-1].span++;
   });
-  let row1 = '<tr><th rowspan="2">日</th><th rowspan="2">曜</th>';
+  let row1 = '<tr><th rowspan="2" class="pv-sticky-left">日</th><th rowspan="2" class="pv-sticky-left">曜</th>';
   groups.forEach(g=>{
     if(g.grouped) row1 += `<th colspan="${g.span}">${g.label}</th>`;
     else if(g.vertical) row1 += `<th rowspan="2" class="th-vert">${g.label}</th>`;
@@ -3680,8 +3696,37 @@ function renderMonthlyPreview(opts){
   const totalW = 28+26+cols.reduce((s,c)=>s+c.w,0);
   const tbl = document.getElementById(opts.tableId);
   if(tbl) tbl.style.width = totalW+'px';
+  // 左に固定する「曜」の列の位置は「日」の列の幅で決まるので、実際の幅を測って合わせる
+  if(tbl){ const dn = tbl.querySelector('td.pv-daynum'); if(dn) tbl.style.setProperty('--pv-dow-left', dn.offsetWidth+'px'); }
   fitPreviewCells(opts.wrapId);
   syncPreviewTopScroll(opts.tableId, totalW);
+}
+// 横スクロールが出る一覧(class="hscroll")の上に、下と連動する横スクロールバーを付ける(2026-11-16、共通ルール)。
+// 一覧は画面のあちこちで作り直されるので、画面の変化を見張って、まだバーのない一覧に付ける。
+// はみ出していないとき(横スクロールが出ないとき)はバーを隠す。
+function attachTopScrolls(){
+  document.querySelectorAll('.hscroll:not([data-ts])').forEach(el=>{
+    el.dataset.ts = '1';
+    const bar = document.createElement('div');
+    bar.className = 'grid-topscroll ts-auto';
+    const inner = document.createElement('div');
+    bar.appendChild(inner);
+    el.parentNode.insertBefore(bar, el);
+    let syncing = false;
+    bar.addEventListener('scroll', ()=>{ if(syncing) return; syncing = true; el.scrollLeft = bar.scrollLeft; syncing = false; });
+    el.addEventListener('scroll', ()=>{ if(syncing) return; syncing = true; bar.scrollLeft = el.scrollLeft; syncing = false; });
+    const fit = ()=>{
+      inner.style.width = el.scrollWidth + 'px';
+      bar.style.display = el.scrollWidth > el.clientWidth + 1 ? '' : 'none';
+    };
+    fit();
+    if(window.ResizeObserver){ const ro = new ResizeObserver(fit); ro.observe(el); if(el.firstElementChild) ro.observe(el.firstElementChild); }
+  });
+}
+{
+  let tsPending = false;
+  new MutationObserver(()=>{ if(tsPending) return; tsPending = true; requestAnimationFrame(()=>{ tsPending = false; attachTopScrolls(); }); })
+    .observe(document.body, {childList:true, subtree:true});
 }
 function syncPreviewTopScroll(tableId, totalW){
   const top = document.getElementById(tableId+'TopScroll');
@@ -3937,7 +3982,7 @@ function actSelectedMonth(){
 function createActGrid(o){
   const R = o.rowHeads.length, C = o.classes.length*6;
   const st = {ar:0, ac:0, fr:0, fc:0, editing:false, mode:null, touched:false, dragging:false};
-  let html = '<div class="ag-scroll"><table class="ag-table"><thead><tr>';
+  let html = '<div class="ag-scroll hscroll"><table class="ag-table"><thead><tr>';
   o.rowHeadLabels.forEach((l,i)=>{ html += `<th class="ag-rh ag-rh${i}" rowspan="2">${l}</th>`; });
   o.classes.forEach(c=>{ html += `<th colspan="6" class="ag-first ag-classhead">${c.label}</th>`; });
   html += '</tr><tr class="ag-head2">';
@@ -4262,7 +4307,7 @@ function renderActualsSummary(){
 
   let html = `<div class="panel"><h2>${scopeLabel}の教科別時数と達成率</h2>`;
   html += `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">各セルは「今日(${now.getMonth()+1}/${now.getDate()})までのコマ数/目標」と達成率です。下段は ${month}月のコマ数と、今後の予定として入力済みの分も含めた年度計の見込み(割合)です。目標は設定タブの必要時数です。</p>`;
-  html += '<div style="overflow-x:auto;"><table class="stats-table act-overview"><thead><tr><th>教科</th>'+classes.map(c=>`<th>${c.label}</th>`).join('')+'</tr></thead><tbody>';
+  html += '<div class="hscroll" style="overflow-x:auto;"><table class="stats-table act-overview"><thead><tr><th>教科</th>'+classes.map(c=>`<th>${c.label}</th>`).join('')+'</tr></thead><tbody>';
   const cellHtml = (m, t, y, r) => {
     if(!r) return `<td><span class="act-ov-num">${t}</span><br><small class="act-ov-sub">${month}月 ${m}／年度計 ${y}</small></td>`;
     const p1 = pct(t, r), p2 = pct(y, r);
@@ -4416,7 +4461,7 @@ function renderTeachingDaysWeeksPanel(){
     {label:'年間計', list:months, total:true}
   ];
   const sum = (obj, list) => list.reduce((a,m)=>a+(obj[`${m.year}-${m.month}`]||0), 0);
-  let html = '<div class="panel"><h2>授業日数・授業週数</h2><div style="overflow-x:auto;"><table class="stats-table"><thead><tr><th></th>'+groups.map(c=>`<th>${c.label}</th>`).join('')+'</tr></thead><tbody>';
+  let html = '<div class="panel"><h2>授業日数・授業週数</h2><div class="hscroll" style="overflow-x:auto;"><table class="stats-table"><thead><tr><th></th>'+groups.map(c=>`<th>${c.label}</th>`).join('')+'</tr></thead><tbody>';
   [1,2,3].forEach(g=>{
     const {days, weeks} = computeTeachingDaysWeeks(g);
     const td = (v, c) => `<td${c.total?' class="stats-total"':''}>${v}</td>`;
@@ -5226,6 +5271,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-16</strong>: 横に長い表の上にも横スクロールバーを付けました(実績の表、時数・集計の表)。月間予定表・年間予定表の画面は、表の枠の中でスクロールするようにし、下へスクロールしても上の見出し(月間は日・曜の列も)が隠れないようにしました。印刷・Excelは変わりません。</li>
     <li><strong>2026-11-16</strong>: 編集パスワードをなくしました。「編集する」を押して名前を入れるだけで編集を始められます。設定タブの「編集パスワードの変更」もなくしました(以前のデータファイルに残っているパスワードは使わず、次に保存したときに消えます)。</li>
     <li><strong>2026-11-03</strong>: 年間予定表(教員用・家庭用)に「📅 Googleカレンダー用に書き出す」を追加しました。期間(月)と、教員用・家庭用を選んで書き出したファイル(.ics)を、Googleカレンダーの設定の「インポート」で取り込めます。「年間」の行事は1つずつ、それ以外の行事はその日ごとに1つにまとめた終日の予定になります。</li>
     <li><strong>2026-10-30</strong>: 「編集する」を押したときに名前を入れるようにしました。ほかの先生の画面には「○○先生が編集中」と出ます。上の「編集の記録」ボタンで、だれが・いつ編集したか(始めた時刻〜最後に保存した時刻)を新しい順に見られます(何を変えたかは記録しません)。</li>
