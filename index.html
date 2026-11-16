@@ -579,26 +579,6 @@
     </div>
 
     <div class="panel">
-      <h2>編集パスワードの変更</h2>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
-        誰でもこのアプリを開いて内容を見ることができますが、入力・設定変更・保存にはここで設定したパスワードが必要です。
-        変更するには、先に右上の「編集する」から現在のパスワードで解除してください。
-      </p>
-      <div class="field-row">
-        <label>現在のパスワード</label>
-        <input type="password" id="pwCurrentInput" style="width:160px;" autocomplete="off">
-      </div>
-      <div class="field-row">
-        <label>新しいパスワード</label>
-        <input type="password" id="pwNewInput" style="width:160px;" autocomplete="off">
-        <label style="margin-left:8px;">確認</label>
-        <input type="password" id="pwNewInput2" style="width:160px;" autocomplete="off">
-        <button id="btnChangePassword">変更する</button>
-      </div>
-      <p id="pwChangeMsg" style="font-size:12.5px;margin:6px 0 0;"></p>
-    </div>
-
-    <div class="panel">
       <h2>表示の色</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">入力画面・月間/年間予定表(プレビュー・Excel出力)で使われる色です。</p>
       <div class="field-row">
@@ -719,8 +699,7 @@
       <h2>テストデータ</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
         元のExcelファイルの実際の記載内容を参考にした、4月分のサンプルデータを.jsonファイルとして書き出せます。
-        現在編集中のデータには影響しません。「開く」でこのファイルを読み込むと、動作確認用のデータが入った状態で試せます
-        (パスワードは初期値の <code>0000</code> のままです)。
+        現在編集中のデータには影響しません。「開く」でこのファイルを読み込むと、動作確認用のデータが入った状態で試せます。
       </p>
       <button id="btnExportSample">サンプルデータ(.json)を出力</button>
       <button id="btnLoadSampleNow" class="ghost" style="margin-left:8px;">サンプルデータをすぐに試す</button>
@@ -884,16 +863,14 @@
       <button class="ghost" id="pwModalClose">✕ 閉じる</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--ink-soft);margin-top:0;">このアプリは閲覧のみ誰でもできますが、入力・設定変更・保存には編集パスワードが必要です。</p>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:0;">名前を入れると編集を始められます。編集中は、ほかの先生の画面に名前が出ます。</p>
       <label style="font-size:13px;">名前(ほかの先生の画面に「○○先生が編集中」と出ます)</label>
-      <input type="text" id="pwNameInput" placeholder="例:山田" style="width:100%;font-size:15px;padding:8px;margin:4px 0 10px;" autocomplete="off">
-      <label style="font-size:13px;">編集パスワード</label>
-      <input type="password" id="pwInput" placeholder="パスワード" style="width:100%;font-size:15px;padding:8px;" autocomplete="off">
-      <p id="pwError" style="color:#c0392b;font-size:12.5px;display:none;margin:6px 0 0;">パスワードが違います。</p>
+      <input type="text" id="pwNameInput" placeholder="例:山田" style="width:100%;font-size:15px;padding:8px;margin:4px 0 0;" autocomplete="off">
+      <p id="pwError" style="color:#c0392b;font-size:12.5px;display:none;margin:6px 0 0;">名前を入れてください。</p>
     </div>
     <div class="modal-foot">
       <button id="pwCancel">キャンセル</button>
-      <button class="primary" id="pwSubmit">解除する</button>
+      <button class="primary" id="pwSubmit">編集を始める</button>
     </div>
   </div>
 </div>
@@ -965,21 +942,17 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-03 12:00';
+const APP_VERSION = '2026-11-16 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
-//////////////////////// 編集ロック(パスワード保護) ////////////////////////
-// 初期パスワードは 0000。誰でも閲覧はできるが、パスワードで解除するまで
-// 入力・設定変更・自動保存はできない(開いただけでは編集モードにならない)。
-const DEFAULT_PASSWORD_HASH = '9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0';
+//////////////////////// 編集モード ////////////////////////
+// 誰でも閲覧はできるが、「編集する」で名前を入れるまで入力・設定変更・自動保存はできない
+// (開いただけでは編集モードにならない。うっかり書き換えるのを防ぐため)。
+// 以前は編集パスワード(初期値0000)があったが、共通ルールで「編集にパスワードは付けない」ことになり、
+// 2026-11-16 になくした(だれが編集したかは名前と「編集の記録」で分かる。パスワードを忘れて編集できなくなるのを防ぐ)。
 let editUnlocked = false;
 let mealListExpanded = false; // 「給食のない日 一覧」を全件表示中かどうか(時数・集計タブの再描画をまたいで保持)
-async function sha256Hex(text){
-  const buf = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
 
 
 function defaultPresets(){
@@ -1030,7 +1003,6 @@ function emptyState(){
     formatVersion: 7,
     meta:{ schoolName:'', fiscalYear: now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1,
       term2StartMonth: 8, term3StartMonth: 1, // 2学期・3学期の開始月(暦月1-12)。既定は1学期4-7月/2学期8-12月/3学期1-3月
-      editPasswordHash: DEFAULT_PASSWORD_HASH, // 編集用パスワード(SHA-256ハッシュ)。既定値は"0000"
       versionLabelMonthly:'', versionLabelAnnual:'', // 予定表タイトルに添える版表記(例:"正式版","保護者説明会時点(4/10)")。月間・年間で別々に設定可能。任意
       supportClassEnabled:false, supportClassName:'5組' }, // 特別支援学級(4つ目の学級)を予定入力・月間予定表に追加するか、その名称
     manualDayFlags:{},   // "YYYY-MM-DD" -> {mode:'holiday'|'schoolday', label:''}
@@ -1065,7 +1037,8 @@ function normalizeState(obj){
   if(!obj.meta) obj.meta = {};
   if(!obj.meta.term2StartMonth) obj.meta.term2StartMonth = 8;
   if(!obj.meta.term3StartMonth) obj.meta.term3StartMonth = 1;
-  if(!obj.meta.editPasswordHash) obj.meta.editPasswordHash = DEFAULT_PASSWORD_HASH;
+  // 以前の版の編集パスワードは使わないので消す(次に保存したときにファイルからもなくなる)
+  delete obj.meta.editPasswordHash; delete obj.meta.passwordHash;
   if(typeof obj.meta.supportClassEnabled !== 'boolean') obj.meta.supportClassEnabled = false;
   if(typeof obj.meta.supportClassName !== 'string' || !obj.meta.supportClassName.trim()) obj.meta.supportClassName = '5組';
   // 版・状態表示は月間・年間で別々の欄に分離した。旧形式(単一のversionLabel)があれば両方へ引き継ぐ。
@@ -4829,7 +4802,6 @@ function renderSettingsTab(){
   ['setSchoolName','setVersionLabelMonthly','setVersionLabelAnnual','setFiscalYear','setTerm2Start','setTerm3Start',
    'setSupportClassEnabled','setClassCountG1','setClassCountG2','setClassCountG3',
    'presetClub','presetLunch','presetPeriod','presetWeeklyDuty',
-   'pwCurrentInput','pwNewInput','pwNewInput2','btnChangePassword',
    'btnImportPrevYearEvents','setColorHoliday','setColorAbsent','btnResetColors',
    'holidayOvrDate','holidayOvrType','holidayOvrLabel','btnHolidayOvrSave',
    'printCountDate','printCountTarget','printCountWho','printCountNum','printCountNote','btnPrintCountSave',
@@ -5254,6 +5226,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-16</strong>: 編集パスワードをなくしました。「編集する」を押して名前を入れるだけで編集を始められます。設定タブの「編集パスワードの変更」もなくしました(以前のデータファイルに残っているパスワードは使わず、次に保存したときに消えます)。</li>
     <li><strong>2026-11-03</strong>: 年間予定表(教員用・家庭用)に「📅 Googleカレンダー用に書き出す」を追加しました。期間(月)と、教員用・家庭用を選んで書き出したファイル(.ics)を、Googleカレンダーの設定の「インポート」で取り込めます。「年間」の行事は1つずつ、それ以外の行事はその日ごとに1つにまとめた終日の予定になります。</li>
     <li><strong>2026-10-30</strong>: 「編集する」を押したときに名前を入れるようにしました。ほかの先生の画面には「○○先生が編集中」と出ます。上の「編集の記録」ボタンで、だれが・いつ編集したか(始めた時刻〜最後に保存した時刻)を新しい順に見られます(何を変えたかは記録しません)。</li>
     <li><strong>2026-10-30</strong>: 保護者が来校する行事を目立たせられるようにしました。予定入力の右側の入力欄で、行事ごとの「保護者来校」にチェックすると、家庭用の年間予定表・月間予定表(画面・Excel)で、その行事だけが太字・1.2倍の大きさになります。予定入力の表では、その行事が太字で表示されます(教員のみの行事には付けられません)。</li>
@@ -5351,10 +5324,8 @@ document.getElementById('helpBody').innerHTML = `
 
   <h4>編集ロックについて</h4>
   <p>このアプリは誰でも開いて内容を見ることができますが、開いた直後は「🔒 閲覧のみ」の状態で、入力・設定変更・保存はできません。
-  右上の「🔒 編集する」ボタンから名前とパスワードを入力すると「🔓 編集モード」になり、入力や保存ができるようになります。ファイルを開き直すと、
-  前回編集モードだったかどうかに関わらず、必ず「閲覧のみ」の状態に戻ります。初期パスワードは <code>0000</code> です。
-  「設定」タブの「編集パスワードの変更」から、編集モード中にいつでも変更できます(教務主任の方は、初回に必ずパスワードを変更しておくことをおすすめします)。
-  パスワードはそのままの文字列ではなく、復元できない形(ハッシュ)に変換してデータファイルに保存されるため、.jsonファイルを直接開いてもパスワードそのものは分かりません。</p>
+  右上の「🔒 編集する」ボタンから名前を入力すると「🔓 編集モード」になり、入力や保存ができるようになります(パスワードはありません)。ファイルを開き直すと、
+  前回編集モードだったかどうかに関わらず、必ず「閲覧のみ」の状態に戻ります。</p>
 
   <h4>名前の入力と「編集の記録」</h4>
   <p>「編集する」を押したときは、名前を入れてください(空のままでは始められません。名前はこのパソコンのブラウザが覚えるので、次からは最初から入っています)。ほかの先生の画面には「⚠ ○○先生が編集中(15:20〜)」と出ます。上の「編集の記録」ボタンを押すと、だれが・いつ編集したか(日付・始めた時刻〜最後に保存した時刻)を新しい順に見られます。何を変えたかは記録しません。新しいものから200件まで残ります。サンプルデータには架空の記録が入っていて、試しに編集しても記録は増えません。</p>
@@ -5487,11 +5458,10 @@ function applyLockUI(){
   }
 }
 function openPasswordModal(){
-  document.getElementById('pwInput').value = '';
   document.getElementById('pwNameInput').value = loadEditorName();
   document.getElementById('pwError').style.display = 'none';
   document.getElementById('pwOverlay').classList.add('show');
-  setTimeout(()=> document.getElementById('pwInput').focus(), 50);
+  setTimeout(()=> document.getElementById('pwNameInput').focus(), 50);
 }
 function closePasswordModal(){ document.getElementById('pwOverlay').classList.remove('show'); }
 
@@ -5894,18 +5864,14 @@ document.getElementById('btnUnlock').addEventListener('click', ()=>{
 document.getElementById('pwCancel').addEventListener('click', closePasswordModal);
 document.getElementById('pwModalClose').addEventListener('click', closePasswordModal);
 document.getElementById('pwSubmit').addEventListener('click', submitPasswordUnlock);
-document.getElementById('pwInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPasswordUnlock(); });
-document.getElementById('pwNameInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') document.getElementById('pwInput').focus(); });
+document.getElementById('pwNameInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPasswordUnlock(); });
 document.getElementById('btnEditLog').addEventListener('click', openEditLogModal);
 document.getElementById('editLogClose').addEventListener('click', ()=> document.getElementById('editLogOverlay').classList.remove('show'));
 
 async function submitPasswordUnlock(){
-  const val = document.getElementById('pwInput').value;
   const editorName = document.getElementById('pwNameInput').value.trim();
-  if(!editorName){ const er=document.getElementById('pwError'); er.textContent='名前を入れてください。'; er.style.display='block'; document.getElementById('pwNameInput').focus(); return; }
-  document.getElementById('pwError').textContent = 'パスワードが違います。';
-  const hash = await sha256Hex(val);
-  if(hash === state.meta.editPasswordHash){
+  if(!editorName){ document.getElementById('pwError').style.display='block'; document.getElementById('pwNameInput').focus(); return; }
+  {
     // 職場サーバー等で共有している場合、他の場所で編集中でないかをファイルから直接確認する
     // (このタブが最後に読み込んだ内容が古い可能性があるため、fileHandleから読み直す)。
     if(fileHandle){
@@ -5917,7 +5883,7 @@ async function submitPasswordUnlock(){
           const mins = Math.max(1, Math.round((Date.now() - new Date(fresh.editLock.since).getTime())/60000));
           const who = fresh.editLock.by ? fresh.editLock.by+'先生が' : '別の場所で';
           const proceed = confirm(`⚠ 警告: 現在、${who}このファイルを編集中です(${mins}分前から)。\n\nこのまま編集を始めると、相手が入力した内容が上書きされて失われるおそれがあります。\n\n本当にこのまま編集を続けますか？`);
-          if(!proceed){ document.getElementById('pwInput').value=''; return; }
+          if(!proceed) return;
         }
         // 開いたあとにほかの場所で保存されていたら、その最新の内容から編集を始める。
         // (以前は読み直さずに古い内容のまま編集が始まり、自動保存で相手の変更を消してしまうことがあった。2026-10-26)
@@ -5940,34 +5906,8 @@ async function submitPasswordUnlock(){
     applyLockUI();
     refreshAll();
     markDirty();
-  } else {
-    document.getElementById('pwError').style.display = 'block';
   }
 }
-
-document.getElementById('btnChangePassword').addEventListener('click', async ()=>{
-  if(!editUnlocked) return;
-  const cur = document.getElementById('pwCurrentInput').value;
-  const n1 = document.getElementById('pwNewInput').value;
-  const n2 = document.getElementById('pwNewInput2').value;
-  const msg = document.getElementById('pwChangeMsg');
-  const curHash = await sha256Hex(cur);
-  if(curHash !== state.meta.editPasswordHash){
-    msg.style.color = '#c0392b'; msg.textContent = '現在のパスワードが正しくありません。'; return;
-  }
-  if(!n1 || n1.length<4){
-    msg.style.color = '#c0392b'; msg.textContent = '新しいパスワードは4文字以上で入力してください。'; return;
-  }
-  if(n1 !== n2){
-    msg.style.color = '#c0392b'; msg.textContent = '新しいパスワード(確認)が一致しません。'; return;
-  }
-  state.meta.editPasswordHash = await sha256Hex(n1);
-  markDirty();
-  document.getElementById('pwCurrentInput').value = '';
-  document.getElementById('pwNewInput').value = '';
-  document.getElementById('pwNewInput2').value = '';
-  msg.style.color = '#1f7a3d'; msg.textContent = 'パスワードを変更しました。';
-});
 
 document.getElementById('btnHelp').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.add('show'));
 document.getElementById('helpModalClose').addEventListener('click', ()=> document.getElementById('helpOverlay').classList.remove('show'));

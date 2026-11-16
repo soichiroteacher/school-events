@@ -97,7 +97,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
     fiscalYear: 2026,              // 4月始まりの年度
     term2StartMonth: 8,            // 2学期開始月(既定8月)
     term3StartMonth: 1,            // 3学期開始月(既定1月)
-    editPasswordHash: '<SHA-256>', // 編集パスワードのハッシュ(既定"0000")
+    // editPasswordHash は 2026-11-16 に廃止(パスワードなし。normalizeState で消す)
     versionLabelMonthly: '', versionLabelAnnual: '', // 予定表タイトルに添える版表記(年間Excelでは【】付きで表示)
     supportClassEnabled: false,    // 特別支援学級(4つ目の学級=内部ではg4)を使うか
     supportClassName: '5組'        // その表示名
@@ -165,7 +165,7 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 | Excel出力(自前ZIP/OOXML実装) | `buildZipStore`, `buildXlsxBytes`, `buildSheetXml`, `buildXlsxStyles`, `buildMonthlyExportGrid`, `buildAnnualExportGrid` |
 | Excelの書式番号 | `XSTYLE`(名前→`cellXfs`の位置)。**`buildXlsxStyles`の`<xf>`の並び順と`XSTYLE`の番号は1対1で対応**するので、書式を追加・削除したら両方を合わせ、`cellXfs count`も直す。境目・外枠の太線は`xstyleToRight/Left/Bottom/...`で派生書式に置き換えている(`rightThickCols`) |
 | PDF/印刷(自動縮小付き) | `printCurrentTab`(内容の実測幅から`zoom`スタイルを計算) |
-| 編集パスワードロック | `applyLockUI`, `openPasswordModal`, `submitPasswordUnlock`, `editUnlocked`変数 |
+| 編集モード(名前の入力。パスワードは 2026-11-16 に廃止) | `applyLockUI`, `openPasswordModal`, `submitPasswordUnlock`, `editUnlocked`変数 |
 | 自動バックアップ(IndexedDBにフォルダハンドル保存) | `openBackupDB`, `idbSet/idbGet`, `runBackupNow`, `maybeRunBackup` |
 | サンプルデータ生成/即時読込 | `generateSampleState`, `exportSampleData`, `loadSampleDataInMemory`(**注**: 内部で`editUnlocked`を`false`にリセットするため、呼び出し順に注意) |
 | ファイル保存(File System Access API) | `doOpen`, `doSaveAs`, `doSave`, `writeToHandle`, `refreshIfChangedOnDisk`(閲覧中の読み直し), `afterOpenFile`, `lastKnownModified`・`saveConflict`(ほかの保存との確認), `supportsFSA`変数 |
@@ -179,8 +179,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 // preview_start({name:'static-server'}) → navigate({url:'http://localhost:8791/'}) の後
 loadSampleDataInMemory();       // サンプルデータを読み込む(内部でeditUnlockedがfalseにリセットされる)
 // 編集モードにする(★サンプルデータ読込の"後"に行う)。submitPasswordUnlockは引数を取らず、
-// #pwInput の値を読む点に注意(submitPasswordUnlock('0000')と書いても解除されない)
-document.getElementById('pwInput').value = '0000';
+// #pwNameInput の名前を読む(パスワードはない)
+document.getElementById('pwNameInput').value = '試験';
 await submitPasswordUnlock();
 document.querySelector('nav.tabs .tab[data-tab="stats"]').click();
 // ...操作・検証...
