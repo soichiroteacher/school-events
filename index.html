@@ -401,6 +401,7 @@
   <button class="tab" data-tab="actuals">実績</button>
   <button class="tab" data-tab="settings">設定(学校名・祝休日)</button>
 </nav>
+<div id="supersededBanner" class="banner" style="display:none;margin:8px 16px;background:#fdecea;border-color:#e6a9a3;color:#8a1f17;font-size:14px;"></div>
 
 <main id="mainSchedule">
 
@@ -958,7 +959,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-16 15:00';
+const APP_VERSION = '2026-11-19 10:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1051,6 +1052,8 @@ function normalizeState(obj){
   }
   if(!obj.colWidths || typeof obj.colWidths!=='object') obj.colWidths = {};
   if(!obj.meta) obj.meta = {};
+  // 「名前を付けて保存」で新しいファイルに移ったときに、古いファイルに残す印(2026-11-19)。形が違うものは消す
+  if(obj.meta.supersededBy && (typeof obj.meta.supersededBy!=='object' || typeof obj.meta.supersededBy.name!=='string')) delete obj.meta.supersededBy;
   if(!obj.meta.term2StartMonth) obj.meta.term2StartMonth = 8;
   if(!obj.meta.term3StartMonth) obj.meta.term3StartMonth = 1;
   // 以前の版の編集パスワードは使わないので消す(次に保存したときにファイルからもなくなる)
@@ -1536,15 +1539,56 @@ async function doSaveAs(){
         types: [{ description:'行事予定データ', accept:{'application/json':['.json']} }],
         ...(startIn ? {startIn} : {})
       });
+      const oldHandle = fileHandle;
       fileHandle = handle;
       lastKnownModified = 0; saveConflict = false; // 新しく保存するファイルなので、ほかの保存との確認はしない
+      delete state.meta.supersededBy; // 新しいファイルには「古いファイル」の印を持ち込まない
       await rememberLastFileHandle(handle);
       await writeToHandle(handle);
+      showSupersededNotice();
+      // 前に開いていたファイルに「新しいファイルはこちら」の印を書く。
+      // ほかの先生のPCは、それぞれ自分が最後に開いたファイルを覚えていて、次もそれを自動で開くため、
+      // 印がないと古いファイルのまま使い続けてしまう(2026-11-19)
+      if(oldHandle && !sampleMode){
+        let same = false;
+        try{ same = await oldHandle.isSameEntry(handle); }catch(e){}
+        if(!same) await markOldFileSuperseded(oldHandle, handle.name);
+      }
       document.getElementById('btnSave').disabled = !editUnlocked;
       setCurrentFileDisplay(handle.name);
       document.getElementById('noFileBanner').style.display='none';
     }catch(e){ if(e.name!=='AbortError') alert('保存できませんでした: '+e.message); }
   } else { downloadFallback(); }
+}
+// 古いファイルに印を書く。中身はファイルにある内容のまま、印と「編集中」の解除だけを足す
+async function markOldFileSuperseded(oldHandle, newName){
+  try{
+    const obj = JSON.parse(await (await oldHandle.getFile()).text());
+    if(!obj.meta) obj.meta = {};
+    obj.meta.supersededBy = { name:newName, at:new Date().toISOString(), by:(state.editLock && state.editLock.by) || loadEditorName() };
+    if(obj.editLock) obj.editLock.active = false;
+    const w = await oldHandle.createWritable();
+    await w.write(JSON.stringify(obj, null, 2));
+    await w.close();
+  }catch(e){
+    console.error('supersede mark failed', e);
+    alert(`前のファイル「${oldHandle.name}」に「新しいファイルはこちら」の印を書けませんでした。
+
+ほかの先生のパソコンでは、前のファイルが開くことがあります。先生方に、「開く」で「${newName}」を選び直してもらってください。`);
+  }
+}
+// 開いているファイルが古いファイル(印あり)なら、画面の上にお知らせを出す
+function showSupersededNotice(){
+  const b = document.getElementById('supersededBanner');
+  if(!b) return;
+  const sup = state && state.meta && state.meta.supersededBy;
+  if(!sup){ b.style.display = 'none'; return; }
+  const at = new Date(sup.at);
+  const when = isNaN(at.getTime()) ? '' : `${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())}に`;
+  const who = sup.by ? `${escapeHtml(sup.by)}先生が` : '';
+  b.innerHTML = `⚠ これは古いファイルです。${when}${who}「${escapeHtml(sup.name)}」に保存し直したため、最新の内容は「${escapeHtml(sup.name)}」にあります。 <button id="btnOpenNewerFile">「${escapeHtml(sup.name)}」を開く</button>`;
+  b.style.display = 'block';
+  document.getElementById('btnOpenNewerFile').addEventListener('click', doOpen);
 }
 async function doSave(){ if(!editUnlocked) return; if(fileHandle){ await writeToHandle(fileHandle); } else { await doSaveAs(); } }
 //////////////////////// XLSX生成エンジン(外部ライブラリ不使用・完全ローカル動作) ////////////////////////
@@ -2317,6 +2361,7 @@ function loadStateFromText(text){
     renderDatalists();
     rebuildColumnDefs();
     refreshAll();
+    showSupersededNotice();
   }catch(e){ alert('読み込みに失敗しました: '+e.message); }
 }
 
@@ -2342,6 +2387,16 @@ function afterOpenFile(name){
   const at = state.meta && state.meta.savedAt ? new Date(state.meta.savedAt) : null;
   const atText = at && !isNaN(at.getTime()) ? `(最後に保存: ${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())})` : '';
   setStatus(`「${name}」を開きました${atText}`, 'saved');
+  const sup = state.meta && state.meta.supersededBy;
+  if(sup){
+    alert(`開いたファイル「${name}」は古いファイルです。
+
+「${sup.name}」に保存し直されているので、最新の内容は「${sup.name}」にあります。
+
+画面上部の「「${sup.name}」を開く」ボタンを押して、「${sup.name}」を選んでください。次からは、選んだファイルが自動で開きます。`);
+    // ここで開く画面を出さないのは、起動時の自動読み込みではボタンを押していないので、ブラウザが開く画面を出させないため
+    return;
+  }
   if(/バックアップ|backup/i.test(name)){
     alert(`開いたファイル「${name}」は、バックアップのファイルのようです。\n\nバックアップは、保存した時点の古い内容です。ふだん使うデータファイルを、上の「開く」で選び直してください(次からは、選び直したファイルが自動で開きます)。\n\n復元のために開いたときは、内容を確かめてから「名前を付けて保存」で、いつものファイル名に保存し直してください。`);
   }
@@ -5271,6 +5326,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-19</strong>: 「名前を付けて保存」で新しいファイルに保存し直したとき、前のファイルに「新しいファイルはこちら」の印を残すようにしました。ほかの先生のパソコンで前のファイルが開いたときは、お知らせが出て、新しいファイルを選ぶ画面が開きます(一度選べば、次からは新しいファイルが自動で開きます)。</li>
     <li><strong>2026-11-16</strong>: 横に長い表の上にも横スクロールバーを付けました(実績の表、時数・集計の表)。月間予定表・年間予定表の画面は、表の枠の中でスクロールするようにし、下へスクロールしても上の見出し(月間は日・曜の列も)が隠れないようにしました。印刷・Excelは変わりません。</li>
     <li><strong>2026-11-16</strong>: 編集パスワードをなくしました。「編集する」を押して名前を入れるだけで編集を始められます。設定タブの「編集パスワードの変更」もなくしました(以前のデータファイルに残っているパスワードは使わず、次に保存したときに消えます)。</li>
     <li><strong>2026-11-03</strong>: 年間予定表(教員用・家庭用)に「📅 Googleカレンダー用に書き出す」を追加しました。期間(月)と、教員用・家庭用を選んで書き出したファイル(.ics)を、Googleカレンダーの設定の「インポート」で取り込めます。「年間」の行事は1つずつ、それ以外の行事はその日ごとに1つにまとめた終日の予定になります。</li>
@@ -5938,6 +5994,13 @@ async function submitPasswordUnlock(){
           lastKnownModified = file.lastModified; saveConflict = false;
         }
       }catch(e){ /* 読み直しに失敗した場合は確認をスキップして続行する */ }
+    }
+    if(state.meta && state.meta.supersededBy){
+      if(!confirm(`このファイルは古いファイルです(最新の内容は「${state.meta.supersededBy.name}」にあります)。
+
+ここに入力しても、ほかの先生が使っている最新のファイルには入りません。
+
+それでも、このファイルを編集しますか？`)) return;
     }
     editUnlocked = true;
     saveEditorName(editorName);
