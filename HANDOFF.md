@@ -13,6 +13,8 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 **2026-09-27 の変更**: データファイルの拡張子を `.dat` から `.json` に変更(中身は以前と同じJSON。開くときは `.json` と `.dat` の両方を選べる。保存・新規作成・自動バックアップ・サンプル出力は `.json`)。保存時に改行と字下げを入れるようにした(`stateToText`。読み込みは以前の1行の形式もそのまま読める)。自動バックアップのファイル名は `行事予定_バックアップ_YYYY-MM-DD_HHMMSS.json`(共通ルールに合わせた。以前は `学校名_backup_YYYYMMDD_HHMMSS.dat`)。`サンプルデータ_1年分.dat` を `.json` に改名。README・CHANGELOG・CLAUDE.md・.gitignore を追加。
 
+**2026-11-19 の変更**: ほかの先生のPCで「前回のファイル」として一つ前(古い)ファイルが開く問題への対策。「前回のファイル」は PC(ブラウザ)ごとに IndexedDB の `lastFileHandle` に覚えるので、だれかが新しいファイルに保存し直しても、ほかの PC は古いほうを開き続けていた。`doSaveAs` で前に開いていたファイルと別のファイルに保存したら、前のファイルに `meta.supersededBy = {name, at, by}` を書く(`markOldFileSuperseded`。中身はそのまま、`editLock` は解除)。古いファイルを開くと `afterOpenFile` で知らせ、画面上部 `#supersededBanner`(`showSupersededNotice`、`loadStateFromText` から呼ぶ)に「〇〇を開く」ボタン(`doOpen`。ダイアログは前のファイルのフォルダから始まる)。編集を始めるときも確認を出す。新しいファイルには印を持ち込まない(`doSaveAs` で delete)。起動時の自動読み込みではボタン操作がないので、ブラウザがファイル選択の画面を出させない→ボタンで開いてもらう。エクスプローラーでファイルを直接コピー・名前変更した場合は印が付かない(README の困ったときに案内)。
+
 **2026-10-30 の変更**: 学校行事等に「保護者来校」のチェック(予定入力の右側のパネル)を追加。日ごとのデータに `parentVisit`(行事名の配列)を足した(`emptyDayRecord`・`migrateDayRecord`・`pruneIfEmpty` に追記済み。古いファイルは空の配列になる)。家庭用の年間・月間予定表で、その行事だけを太字・1.2倍にする(画面は `.pv-parent`・`parentVisitHtml`、Excel は `parentVisitRuns` でセルの中の一部だけ書式を変える `runs`)。詳しくは TODO.md の35。
 
 **2026-10-27 の変更**: 予定入力の学校行事等を4欄から1欄＋右側のパネル(`#evPanel`)にまとめた。行事ごとに「年間」「月間」「教員のみ」のチェックで載せる先を決め、保存のときに4つの欄に読み替える(`eventItemsOf`・`writeEventItems`)。データの形とほかのタブの表示は変えていない。詳しくは TODO.md の32。
