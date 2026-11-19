@@ -383,6 +383,7 @@
   <div class="btnrow">
     <span id="status">未保存</span>
     <button id="btnOpen">開く</button>
+    <button id="btnOpenFolder" title="データを置いているフォルダを選ぶと、その中で名前の日付が一番新しいファイルを、毎回自動で開きます">フォルダから開く</button>
     <button id="btnSaveAs" disabled>名前を付けて保存</button>
     <button id="btnSave" class="primary" disabled>保存</button>
     <button id="btnUnlock">🔒 編集する</button>
@@ -401,6 +402,7 @@
   <button class="tab" data-tab="actuals">実績</button>
   <button class="tab" data-tab="settings">設定(学校名・祝休日)</button>
 </nav>
+<div id="newerFileBanner" class="banner" style="display:none;margin:8px 16px;background:#fdecea;border-color:#e6a9a3;color:#8a1f17;font-size:14px;"></div>
 <div id="supersededBanner" class="banner" style="display:none;margin:8px 16px;background:#fdecea;border-color:#e6a9a3;color:#8a1f17;font-size:14px;"></div>
 
 <main id="mainSchedule">
@@ -959,7 +961,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-19 10:00';
+const APP_VERSION = '2026-11-19 13:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1533,9 +1535,12 @@ async function doSaveAs(){
   if(!editUnlocked) return;
   if(supportsFSA){
     try{
-      const startIn = await getStartInHandle();
+      // 「フォルダから開く」を使っているときは、名前に今日の日付を入れて、そのフォルダに保存するのを勧める
+      // (フォルダの中は名前の日付で一番新しいものを開くため)
+      const t = new Date();
+      const startIn = dataDirHandle || await getStartInHandle();
       const handle = await window.showSaveFilePicker({
-        suggestedName: (state.meta.schoolName||'行事予定') + '.json',
+        suggestedName: dataDirHandle ? `行事予定_${t.getFullYear()}-${pad2(t.getMonth()+1)}-${pad2(t.getDate())}.json` : (state.meta.schoolName||'行事予定') + '.json',
         types: [{ description:'行事予定データ', accept:{'application/json':['.json']} }],
         ...(startIn ? {startIn} : {})
       });
@@ -2325,6 +2330,9 @@ async function doOpen(){
       fileHandle = handle;
       lastKnownModified = file.lastModified; saveConflict = false;
       await rememberLastFileHandle(handle);
+      // 「開く」でファイルを1つ選んだときは、フォルダから一番新しいものを開く決め方をやめる
+      // (やめないと、わざと選んだファイルが、次の起動や1分おきの確認で別のファイルに替わってしまうため)
+      await forgetDataDir();
       document.getElementById('btnSave').disabled = !editUnlocked;
       setCurrentFileDisplay(handle.name);
       document.getElementById('noFileBanner').style.display='none';
@@ -2363,6 +2371,116 @@ function loadStateFromText(text){
     refreshAll();
     showSupersededNotice();
   }catch(e){ alert('読み込みに失敗しました: '+e.message); }
+}
+
+//////////////////////// データのフォルダから、日付が一番新しいファイルを開く ////////////////////////
+// ほかの先生のPCは「そのPCで最後に開いたファイル」を覚えて開くため、エクスプローラーでファイルをコピーして
+// 新しい日付の名前にすると、ほかのPCでは一つ前のファイルが開き続けてしまう(2026-11-19 ユーザーから)。
+// そこで、ファイルではなく「データを置いているフォルダ」を覚え、その中で **名前の日付が一番新しい** ファイルを開く。
+// 更新日時で決めないのは、エクスプローラーでコピーすると更新日時がコピー元と同じままになるため(ユーザーと合意: 名前の日付で決める)。
+// 名前の日付の書き方: 2026-11-19 / 2026_11_19 / 2026.11.19 / 20261119 / 2026年11月19日(後ろに時刻 1530 / 15-30 があれば時刻も見る)。
+// バックアップのファイル(名前に「バックアップ」「backup」)と、日付のない名前のファイルは選ばない。
+let dataDirHandle = null;
+function dateKeyFromName(name){
+  const re = /(\d{4})[-_.\/年]?(\d{1,2})[-_.\/月]?(\d{1,2})日?(?:[ _\-]?(\d{2})[:時\-]?(\d{2})分?)?/g;
+  let m, best = null;
+  while((m = re.exec(name))){
+    const y=+m[1], mo=+m[2], d=+m[3];
+    if(y<2000 || y>2100 || mo<1 || mo>12 || d<1 || d>31) continue;
+    let key = ((y*100+mo)*100+d)*10000;
+    if(m[4]!==undefined && +m[4]<24 && +m[5]<60) key += (+m[4])*100 + (+m[5]);
+    if(best===null || key>best) best = key;
+  }
+  return best;
+}
+async function findNewestInDir(dir){
+  let best = null, bestKey = -1, bestMod = -1;
+  for await (const entry of dir.values()){
+    if(entry.kind !== 'file') continue;
+    if(!/\.(json|dat)$/i.test(entry.name) || /バックアップ|backup/i.test(entry.name)) continue;
+    const key = dateKeyFromName(entry.name);
+    if(key===null || key < bestKey) continue;
+    let mod = 0;
+    try{ mod = (await entry.getFile()).lastModified; }catch(e){}
+    // 同じ日付が2つあるときは、更新日時の新しいほう
+    if(key > bestKey || mod > bestMod){ best = entry; bestKey = key; bestMod = mod; }
+  }
+  return best;
+}
+async function forgetDataDir(){
+  if(!dataDirHandle){ try{ dataDirHandle = await idbGet('dataDirHandle'); }catch(e){} }
+  if(!dataDirHandle) return;
+  dataDirHandle = null;
+  try{ await idbSet('dataDirHandle', null); }catch(e){}
+  document.getElementById('newerFileBanner').style.display = 'none';
+}
+// フォルダの中の一番新しいファイルを開く。開いた(またはすでに開いていた)ら true
+async function openNewestFromDataDir(dir, quiet){
+  const newest = await findNewestInDir(dir);
+  if(!newest){
+    if(!quiet) alert(`フォルダ「${dir.name}」に、名前に日付の入ったデータファイルが見つかりませんでした。\n\nデータファイルの名前に「行事予定_2026-11-19.json」のように日付を入れてください(バックアップのファイルは選びません)。`);
+    return false;
+  }
+  if(fileHandle){ try{ if(await fileHandle.isSameEntry(newest)) return true; }catch(e){} }
+  await openHandleAsCurrentFile(newest);
+  setCurrentFileDisplay(`${newest.name}(フォルダ「${dir.name}」の最新)`);
+  document.getElementById('newerFileBanner').style.display = 'none';
+  return true;
+}
+async function doOpenFolder(){
+  if(!window.showDirectoryPicker){ alert('このブラウザでは使えません。Chrome または Edge で開いてください。'); return; }
+  if(editUnlocked){ alert('編集中はフォルダから開けません。先に「🔒 編集を終える」を押してください。'); return; }
+  try{
+    const startIn = await getStartInHandle();
+    const dir = await window.showDirectoryPicker({ mode:'readwrite', ...(startIn ? {startIn} : {}) });
+    if(await openNewestFromDataDir(dir, false)){
+      dataDirHandle = dir;
+      try{ await idbSet('dataDirHandle', dir); }catch(e){}
+      alert(`フォルダ「${dir.name}」の中で、名前の日付が一番新しい「${fileHandle.name}」を開きました。\n\n次からは、アプリを開くたびに、このフォルダの一番新しい日付のファイルが開きます。`);
+    }
+  }catch(e){ if(e.name!=='AbortError') alert('フォルダを開けませんでした: '+e.message); }
+}
+// 起動時: フォルダを覚えていれば、そこから開く。フォルダを使っていなければ false(前回のファイルを開く)
+async function tryAutoLoadFromDataDir(){
+  let dir;
+  try{ dir = await idbGet('dataDirHandle'); }catch(e){ return false; }
+  if(!dir) return false;
+  dataDirHandle = dir;
+  let perm;
+  try{ perm = await dir.queryPermission({mode:'readwrite'}); }catch(e){ return false; }
+  if(perm === 'granted'){
+    try{ if(await openNewestFromDataDir(dir, true)) return true; }catch(e){}
+    return false;
+  }
+  const b = document.getElementById('noFileBanner');
+  b.innerHTML = `データのフォルダ「${escapeHtml(dir.name)}」から、日付が一番新しいファイルを開くには、下のボタンを押してください(ブラウザの仕様上、起動のたびに1回だけ許可が必要です)。 <button id="btnAutoOpenDir">最新のファイルを開く</button>`;
+  b.style.display = 'block'; b.className = 'banner info';
+  document.getElementById('btnAutoOpenDir').addEventListener('click', async ()=>{
+    try{
+      const p = await dir.requestPermission({mode:'readwrite'});
+      if(p !== 'granted') return;
+      await openNewestFromDataDir(dir, false);
+    }catch(e){ alert('開けませんでした: '+e.message); }
+  });
+  return true;
+}
+// 開いている間に、フォルダにもっと新しい日付のファイルが置かれたか確かめる。
+// 閲覧中ならそのまま開き直す。編集中は上書きの心配があるので、お知らせだけ出す。
+async function checkNewerInDataDir(){
+  if(!dataDirHandle || sampleMode || !fileHandle) return;
+  try{
+    if(await dataDirHandle.queryPermission({mode:'readwrite'}) !== 'granted') return;
+    const newest = await findNewestInDir(dataDirHandle);
+    if(!newest || await fileHandle.isSameEntry(newest)) return;
+    if(!editUnlocked){
+      await openNewestFromDataDir(dataDirHandle, true);
+      setStatus(`フォルダに置かれた新しい日付のファイル「${newest.name}」を開きました`, 'saved');
+    } else {
+      const b = document.getElementById('newerFileBanner');
+      b.innerHTML = `⚠ フォルダに、新しい日付のファイル「${escapeHtml(newest.name)}」が置かれました。いま編集しているのは「${escapeHtml(fileHandle.name)}」です。「🔒 編集を終える」を押すと、新しいファイルに切り替わります。`;
+      b.style.display = 'block';
+    }
+  }catch(e){ /* 共有サーバーにつながらないときなどは、そのままにする */ }
 }
 
 //////////////////////// 前回のファイルを起動時に開く ////////////////////////
@@ -2413,11 +2531,13 @@ async function refreshIfChangedOnDisk(){
     setStatus('ほかの場所で保存された、最新の内容を読み込みました', 'saved');
   }catch(e){ /* 共有サーバーにつながらないときなどは、そのままにする */ }
 }
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshIfChangedOnDisk(); });
-window.addEventListener('focus', refreshIfChangedOnDisk);
-setInterval(refreshIfChangedOnDisk, 60*1000);
+async function refreshFromDisk(){ await checkNewerInDataDir(); await refreshIfChangedOnDisk(); }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromDisk(); });
+window.addEventListener('focus', refreshFromDisk);
+setInterval(refreshFromDisk, 60*1000);
 async function tryAutoLoadLastFile(){
   if(!supportsFSA) return;
+  if(await tryAutoLoadFromDataDir()) return;
   let handle;
   try{ handle = await getStartInHandle(); }catch(e){ return; }
   if(!handle) return;
@@ -5326,6 +5446,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-19</strong>: 「フォルダから開く」を追加しました。データを置いているフォルダを一度選ぶと、アプリを開くたびに、その中で名前の日付が一番新しいファイル(例:行事予定_2026-11-19.json)を自動で開きます。エクスプローラーでファイルをコピーして新しい日付の名前にしたときも、ほかの先生のパソコンで新しいファイルが開きます。</li>
     <li><strong>2026-11-19</strong>: 「名前を付けて保存」で新しいファイルに保存し直したとき、前のファイルに「新しいファイルはこちら」の印を残すようにしました。ほかの先生のパソコンで前のファイルが開いたときは、お知らせが出て、新しいファイルを選ぶ画面が開きます(一度選べば、次からは新しいファイルが自動で開きます)。</li>
     <li><strong>2026-11-16</strong>: 横に長い表の上にも横スクロールバーを付けました(実績の表、時数・集計の表)。月間予定表・年間予定表の画面は、表の枠の中でスクロールするようにし、下へスクロールしても上の見出し(月間は日・曜の列も)が隠れないようにしました。印刷・Excelは変わりません。</li>
     <li><strong>2026-11-16</strong>: 編集パスワードをなくしました。「編集する」を押して名前を入れるだけで編集を始められます。設定タブの「編集パスワードの変更」もなくしました(以前のデータファイルに残っているパスワードは使わず、次に保存したときに消えます)。</li>
@@ -5429,6 +5550,16 @@ document.getElementById('helpBody').innerHTML = `
   右上の「🔒 編集する」ボタンから名前を入力すると「🔓 編集モード」になり、入力や保存ができるようになります(パスワードはありません)。ファイルを開き直すと、
   前回編集モードだったかどうかに関わらず、必ず「閲覧のみ」の状態に戻ります。</p>
 
+  <h4>「フォルダから開く」(いつも一番新しいファイルを開く)</h4>
+  <p>画面上部の「フォルダから開く」で、データファイルを置いているフォルダを選ぶと、そのフォルダの中で<strong>名前の日付が一番新しいファイル</strong>を開きます。
+  次からは、アプリを開くたびに同じフォルダの一番新しい日付のファイルが自動で開きます(許可のボタンを1回押すことがあります)。</p>
+  <ul>
+    <li>ファイル名に日付を入れてください。例:<code>行事予定_2026-11-19.json</code>(<code>20261119</code>・<code>2026年11月19日</code> でも分かります)。</li>
+    <li>エクスプローラーでファイルをコピーして、新しい日付の名前にしてもかまいません。ほかの先生のパソコンでも、新しいファイルが開きます。</li>
+    <li>名前に「バックアップ」が入るファイルと、日付のないファイルは選びません。</li>
+    <li>見ている間に新しい日付のファイルが置かれると、自動で切り替わります。編集中のときは、画面上部にお知らせが出て、「編集を終える」と切り替わります。</li>
+    <li>「開く」でファイルを1つ選ぶと、フォルダから開く決め方は終わり、選んだファイルを開くようになります。</li>
+  </ul>
   <h4>名前の入力と「編集の記録」</h4>
   <p>「編集する」を押したときは、名前を入れてください(空のままでは始められません。名前はこのパソコンのブラウザが覚えるので、次からは最初から入っています)。ほかの先生の画面には「⚠ ○○先生が編集中(15:20〜)」と出ます。上の「編集の記録」ボタンを押すと、だれが・いつ編集したか(日付・始めた時刻〜最後に保存した時刻)を新しい順に見られます。何を変えたかは記録しません。新しいものから200件まで残ります。サンプルデータには架空の記録が入っていて、試しに編集しても記録は増えません。</p>
 
@@ -5959,6 +6090,8 @@ document.getElementById('btnUnlock').addEventListener('click', ()=>{
     editUnlocked = false;
     applyLockUI();
     refreshAll();
+    // フォルダに新しい日付のファイルが置かれていたら切り替える(編集の終わりの自動保存が済んでから)
+    setTimeout(checkNewerInDataDir, 5000);
   } else {
     openPasswordModal();
   }
@@ -5973,6 +6106,17 @@ document.getElementById('editLogClose').addEventListener('click', ()=> document.
 async function submitPasswordUnlock(){
   const editorName = document.getElementById('pwNameInput').value.trim();
   if(!editorName){ document.getElementById('pwError').style.display='block'; document.getElementById('pwNameInput').focus(); return; }
+  // データのフォルダを使っていて、もっと新しい日付のファイルがあれば、そちらに切り替えてから編集を始める
+  if(dataDirHandle && fileHandle && !sampleMode){
+    try{
+      const newest = await findNewestInDir(dataDirHandle);
+      if(newest && !(await fileHandle.isSameEntry(newest))){
+        alert(`フォルダに、新しい日付のファイル「${newest.name}」があります。そちらに切り替えてから編集を始めます。`);
+        await openHandleAsCurrentFile(newest);
+        setCurrentFileDisplay(`${newest.name}(フォルダ「${dataDirHandle.name}」の最新)`);
+      }
+    }catch(e){}
+  }
   {
     // 職場サーバー等で共有している場合、他の場所で編集中でないかをファイルから直接確認する
     // (このタブが最後に読み込んだ内容が古い可能性があるため、fileHandleから読み直す)。
@@ -6132,6 +6276,7 @@ document.querySelectorAll('input[name="icsAud"]').forEach(r=> r.addEventListener
 
 //////////////////////// ファイル操作ボタン ////////////////////////
 document.getElementById('btnOpen').addEventListener('click', doOpen);
+document.getElementById('btnOpenFolder').addEventListener('click', doOpenFolder);
 document.getElementById('btnSaveAs').addEventListener('click', doSaveAs);
 document.getElementById('btnSave').addEventListener('click', doSave);
 document.getElementById('btnExportTeacherXlsx').addEventListener('click', ()=> openMonthPickerModal('teacher'));
