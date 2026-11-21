@@ -362,7 +362,7 @@
   table.baf-period-table input.baf-period-input{width:34px;padding:4px 2px;font-size:12.5px;box-sizing:border-box;text-align:center;font-family:inherit;}
   @media print{
     body{background:#fff;}
-    header.appbar, nav.tabs, .month-head, #noFileBanner, .grid-topscroll, .annual-opts{display:none !important;}
+    header.appbar, nav.tabs, .month-head, #noFileBanner, #fileBanner, .grid-topscroll, .annual-opts{display:none !important;}
     main{padding:0 !important;max-width:none !important;}
     .panel{border:none !important;box-shadow:none !important;padding:0 !important;}
     .preview-scroll{border:none !important;overflow:visible !important;max-height:none !important;}
@@ -382,9 +382,7 @@
   <div class="spacer"></div>
   <div class="btnrow">
     <span id="status">未保存</span>
-    <button id="btnOpen">開く</button>
-    <button id="btnOpenFolder" title="データを置いているフォルダを選ぶと、その中で名前の日付が一番新しいファイルを、毎回自動で開きます">フォルダから開く</button>
-    <button id="btnSaveAs" disabled>名前を付けて保存</button>
+    <button id="btnOpen" title="バックアップや前の年度のファイルなどを、見るだけで開きます。「この内容に戻す」で、いつものファイルに戻せます">データを読み込む(復元)</button>
     <button id="btnSave" class="primary" disabled>保存</button>
     <button id="btnUnlock">🔒 編集する</button>
     <button id="btnEditLog" class="ghost">編集の記録</button>
@@ -402,8 +400,7 @@
   <button class="tab" data-tab="actuals">実績</button>
   <button class="tab" data-tab="settings">設定(学校名・祝休日)</button>
 </nav>
-<div id="newerFileBanner" class="banner" style="display:none;margin:8px 16px;background:#fdecea;border-color:#e6a9a3;color:#8a1f17;font-size:14px;"></div>
-<div id="supersededBanner" class="banner" style="display:none;margin:8px 16px;background:#fdecea;border-color:#e6a9a3;color:#8a1f17;font-size:14px;"></div>
+<div id="fileBanner" class="banner info" style="display:none;margin:8px 16px;font-size:14px;"></div>
 
 <main id="mainSchedule">
 
@@ -682,26 +679,29 @@
     </div>
 
     <div class="panel">
-      <h2>自動バックアップ</h2>
+      <h2>データのフォルダとバックアップ</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
-        指定したフォルダに、.jsonファイルのバックアップを自動的に保存します(タイムスタンプ付きの別ファイルとして保存されるため、元のファイルは上書きされません)。
-        ブラウザの仕様上、フォルダへのアクセス許可は完全に自動では継続できませんが、一度選んだフォルダは次回以降も記憶され、
-        アプリを開いたときに1回だけ「アクセスを許可」ボタンを押せば再設定なしで使えます。
+        データは、校務共有サーバーのフォルダに、年度ごとに「行事予定_2026年度.json」のような名前で置きます。
+        アプリはこのフォルダを覚えていて(パソコンごとに最初に1回選びます)、開くと名前の年度が一番新しいファイルを開きます。
       </p>
       <div class="field-row">
-        <span id="backupFolderStatus" style="font-size:13px;">バックアップ先: 未設定</span>
-        <button id="btnChooseBackupFolder">フォルダを選択</button>
-        <button id="btnAllowBackupFolder" style="display:none;">アクセスを許可</button>
+        <span id="dataDirStatus" style="font-size:13px;">データのフォルダ: まだ選んでいません</span>
+        <button id="btnChooseDataDir">データのフォルダを選ぶ</button>
       </div>
       <div class="field-row">
-        <label>バックアップの頻度</label>
-        <select id="backupIntervalSelect">
-          <option value="always">保存のたびに毎回</option>
-          <option value="30min">30分おきに1回</option>
-          <option value="daily" selected>1日に1回(その日初めての保存時)</option>
-        </select>
+        <button id="btnNewYearFile">新しい年度のファイルを作る</button>
+        <small class="hint" id="newYearHint">設定・候補・今の年度の予定を引き継いで、次の年度のファイルを作ります(作る前にバックアップを取ります)。</small>
       </div>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:6px 0 0;">最終バックアップ: <span id="lastBackupStatus">まだありません</span></p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:10px 0 4px;">
+        <strong>バックアップ:</strong> <span id="backupCountStatus">-</span><br>
+        編集を始めるとき、その日のバックアップがまだなければ、データのフォルダの中の「バックアップ」フォルダに1つ取ります
+        (名前は「行事予定_2026年度_バックアップ_2026-11-21_0830.json」。編集を始める前の内容です)。
+        元に戻す前・新しい年度のファイルを作る前にも取ります。アプリでは消さないので、多くなったらエクスプローラーで古いものを消してください。
+      </p>
+      <div class="field-row">
+        <button id="btnExportData">データを書き出す(バックアップ)</button>
+        <small class="hint">今の内容を、このパソコンの「ダウンロード」に保存します(別の場所に控えを残したいとき)。</small>
+      </div>
     </div>
 
     <div class="panel">
@@ -710,7 +710,7 @@
         現在のファイル: <strong id="currentFileName">(未保存)</strong><br>
         このファイルの最終保存: <span id="fileSavedVersionInfo">-</span><br>
         現在使用中のアプリのバージョン: <strong>v<span id="settingsAppVersion"></span></strong><br>
-        Chrome / Edge では、一度保存先を選ぶとその後の変更は自動的に同じファイルへ上書き保存されます。
+        編集中の変更は、自動的に同じファイルへ上書き保存されます(Chrome / Edge)。
       </p>
     </div>
 
@@ -718,13 +718,13 @@
       <h2>テストデータ</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
         元のExcelファイルの実際の記載内容を参考にした、4月分のサンプルデータを.jsonファイルとして書き出せます。
-        現在編集中のデータには影響しません。「開く」でこのファイルを読み込むと、動作確認用のデータが入った状態で試せます。
+        現在編集中のデータには影響しません。「データを読み込む(復元)」でこのファイルを選ぶと、見るだけで中身を確かめられます。
       </p>
       <button id="btnExportSample">サンプルデータ(.json)を出力</button>
       <button id="btnLoadSampleNow" class="ghost" style="margin-left:8px;">サンプルデータをすぐに試す</button>
       <p style="font-size:12px;color:var(--warn);margin:8px 0 0;">
         「すぐに試す」は、画面上のデータをサンプルに一時的に置き換えるだけで、開いていたファイル自体は一切変更・上書きされません。
-        置き換え後は保存先が未設定の状態になるため、誤って元のファイルに保存されることはありません(お手元のデータに戻るには、もう一度そのファイルを「開く」で読み込み直してください)。
+        置き換え後は保存されないので、元のファイルが書き換わることはありません(お手元のデータに戻るには、画面上部の「いつものファイルに戻る」を押してください)。
       </p>
     </div>
   </div>
@@ -961,7 +961,7 @@
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-19 13:00';
+const APP_VERSION = '2026-11-21 12:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1054,8 +1054,8 @@ function normalizeState(obj){
   }
   if(!obj.colWidths || typeof obj.colWidths!=='object') obj.colWidths = {};
   if(!obj.meta) obj.meta = {};
-  // 「名前を付けて保存」で新しいファイルに移ったときに、古いファイルに残す印(2026-11-19)。形が違うものは消す
-  if(obj.meta.supersededBy && (typeof obj.meta.supersededBy!=='object' || typeof obj.meta.supersededBy.name!=='string')) delete obj.meta.supersededBy;
+  // 11/19〜11/21 の版で付けていた「古いファイルの印」は使わなくなったので消す(年度ごとのファイルにしたため)
+  delete obj.meta.supersededBy;
   if(!obj.meta.term2StartMonth) obj.meta.term2StartMonth = 8;
   if(!obj.meta.term3StartMonth) obj.meta.term3StartMonth = 1;
   // 以前の版の編集パスワードは使わないので消す(次に保存したときにファイルからもなくなる)
@@ -1519,9 +1519,8 @@ async function writeToHandle(handle){
   if(handle===fileHandle){ try{ lastKnownModified = (await handle.getFile()).lastModified; }catch(e){} }
   markSaved();
   updateFileVersionInfo();
-  maybeRunBackup();
 }
-// 「開く」「名前を付けて保存」のダイアログを開く際、前回使ったファイルと同じフォルダを
+// 「データを読み込む」「データのフォルダを選ぶ」のダイアログを開く際、前回使ったファイルと同じフォルダを
 // 初期位置にする(毎回別の場所から探し直さずに済むように)。前回のハンドルをIndexedDBに
 // 保存しておき、File System Access APIのstartInオプション(ファイルハンドルを渡すと、
 // その保存先フォルダが初期位置になる)に渡す。
@@ -1531,71 +1530,8 @@ async function getStartInHandle(){
 async function rememberLastFileHandle(handle){
   try{ await idbSet('lastFileHandle', handle); }catch(e){}
 }
-async function doSaveAs(){
-  if(!editUnlocked) return;
-  if(supportsFSA){
-    try{
-      // 「フォルダから開く」を使っているときは、名前に今日の日付を入れて、そのフォルダに保存するのを勧める
-      // (フォルダの中は名前の日付で一番新しいものを開くため)
-      const t = new Date();
-      const startIn = dataDirHandle || await getStartInHandle();
-      const handle = await window.showSaveFilePicker({
-        suggestedName: dataDirHandle ? `行事予定_${t.getFullYear()}-${pad2(t.getMonth()+1)}-${pad2(t.getDate())}.json` : (state.meta.schoolName||'行事予定') + '.json',
-        types: [{ description:'行事予定データ', accept:{'application/json':['.json']} }],
-        ...(startIn ? {startIn} : {})
-      });
-      const oldHandle = fileHandle;
-      fileHandle = handle;
-      lastKnownModified = 0; saveConflict = false; // 新しく保存するファイルなので、ほかの保存との確認はしない
-      delete state.meta.supersededBy; // 新しいファイルには「古いファイル」の印を持ち込まない
-      await rememberLastFileHandle(handle);
-      await writeToHandle(handle);
-      showSupersededNotice();
-      // 前に開いていたファイルに「新しいファイルはこちら」の印を書く。
-      // ほかの先生のPCは、それぞれ自分が最後に開いたファイルを覚えていて、次もそれを自動で開くため、
-      // 印がないと古いファイルのまま使い続けてしまう(2026-11-19)
-      if(oldHandle && !sampleMode){
-        let same = false;
-        try{ same = await oldHandle.isSameEntry(handle); }catch(e){}
-        if(!same) await markOldFileSuperseded(oldHandle, handle.name);
-      }
-      document.getElementById('btnSave').disabled = !editUnlocked;
-      setCurrentFileDisplay(handle.name);
-      document.getElementById('noFileBanner').style.display='none';
-    }catch(e){ if(e.name!=='AbortError') alert('保存できませんでした: '+e.message); }
-  } else { downloadFallback(); }
-}
-// 古いファイルに印を書く。中身はファイルにある内容のまま、印と「編集中」の解除だけを足す
-async function markOldFileSuperseded(oldHandle, newName){
-  try{
-    const obj = JSON.parse(await (await oldHandle.getFile()).text());
-    if(!obj.meta) obj.meta = {};
-    obj.meta.supersededBy = { name:newName, at:new Date().toISOString(), by:(state.editLock && state.editLock.by) || loadEditorName() };
-    if(obj.editLock) obj.editLock.active = false;
-    const w = await oldHandle.createWritable();
-    await w.write(JSON.stringify(obj, null, 2));
-    await w.close();
-  }catch(e){
-    console.error('supersede mark failed', e);
-    alert(`前のファイル「${oldHandle.name}」に「新しいファイルはこちら」の印を書けませんでした。
-
-ほかの先生のパソコンでは、前のファイルが開くことがあります。先生方に、「開く」で「${newName}」を選び直してもらってください。`);
-  }
-}
-// 開いているファイルが古いファイル(印あり)なら、画面の上にお知らせを出す
-function showSupersededNotice(){
-  const b = document.getElementById('supersededBanner');
-  if(!b) return;
-  const sup = state && state.meta && state.meta.supersededBy;
-  if(!sup){ b.style.display = 'none'; return; }
-  const at = new Date(sup.at);
-  const when = isNaN(at.getTime()) ? '' : `${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())}に`;
-  const who = sup.by ? `${escapeHtml(sup.by)}先生が` : '';
-  b.innerHTML = `⚠ これは古いファイルです。${when}${who}「${escapeHtml(sup.name)}」に保存し直したため、最新の内容は「${escapeHtml(sup.name)}」にあります。 <button id="btnOpenNewerFile">「${escapeHtml(sup.name)}」を開く</button>`;
-  b.style.display = 'block';
-  document.getElementById('btnOpenNewerFile').addEventListener('click', doOpen);
-}
-async function doSave(){ if(!editUnlocked) return; if(fileHandle){ await writeToHandle(fileHandle); } else { await doSaveAs(); } }
+// 保存は、データのフォルダから開いた本体にだけ行う(見るだけで開いたファイル・見本には書かない)
+async function doSave(){ if(!editUnlocked || viewOnly || !fileHandle) return; await writeToHandle(fileHandle); }
 //////////////////////// XLSX生成エンジン(外部ライブラリ不使用・完全ローカル動作) ////////////////////////
 // ZIP(格納のみ・無圧縮)とOOXML最小構成を自前で組み立てて.xlsxを生成する。
 // 圧縮ライブラリに依存しないため、ネット接続がなくても常に動作する。
@@ -2146,10 +2082,13 @@ function loadSampleDataInMemory(){
   // サンプルデータが誤って上書きされてしまう恐れがあるため。
   fileHandle = null;
   editUnlocked = false;
+  viewOnly = false; mainYear = null;
   sampleMode = true; myEditLogEntry = null;
   dirty = false;
   setStatus('サンプルデータ(未保存・保存先は未設定です)', 'dirty');
-  setCurrentFileDisplay('(サンプルデータ・保存先未設定)');
+  setCurrentFileDisplay('(サンプルデータ・保存されません)');
+  setFileBanner(`見本データで試しています(保存されません)。${dataDirHandle ? ' <button id="fbBackFromSample">いつものファイルに戻る</button>' : ''}`, 'info');
+  onBannerClick('fbBackFromSample', async ()=>{ if(editUnlocked){ editUnlocked = false; } setFileBanner(''); await openFromDataDir(dataDirHandle, true); });
   updateFileVersionInfo();
   applyLockUI();
   applyColorSettings();
@@ -2158,12 +2097,10 @@ function loadSampleDataInMemory(){
   refreshAll();
 }
 
-//////////////////////// 自動バックアップ ////////////////////////
-// 指定フォルダにタイムスタンプ付きの.jsonバックアップを定期的に保存する。
-// フォルダのハンドルはIndexedDBに保存し、次回起動時も選び直さずに済むようにする
-// (ブラウザの仕様上、アクセス許可の再確認だけは毎回必要)。
-let backupDirHandle = null;
-let backupDirPermission = 'unset'; // 'unset' | 'granted' | 'prompt'
+//////////////////////// IndexedDB(データのフォルダなどを覚える) ////////////////////////
+// フォルダやファイルのハンドルは localStorage に入らないので、IndexedDB に入れる。
+// 2026-11-21 まではここで「自動バックアップのフォルダ」を別に選んでいたが、共通ルールで
+// データのフォルダの中の「バックアップ」フォルダに取るようになったので、その仕組みは消した。
 const BACKUP_DB_NAME = 'eventAppBackupDB';
 const BACKUP_STORE = 'handles';
 function openBackupDB(){
@@ -2193,162 +2130,39 @@ async function idbGet(key){
   });
 }
 
-function getBackupInterval(){
-  return localStorage.getItem('eventapp_backup_interval') || 'daily';
-}
-function setBackupInterval(v){ localStorage.setItem('eventapp_backup_interval', v); }
-function getLastBackupTime(){
-  const v = localStorage.getItem('eventapp_last_backup');
-  return v ? new Date(v) : null;
-}
-function setLastBackupTime(d){ localStorage.setItem('eventapp_last_backup', d.toISOString()); }
-
-async function refreshBackupUI(){
-  const statusEl = document.getElementById('backupFolderStatus');
-  const allowBtn = document.getElementById('btnAllowBackupFolder');
-  const chooseBtn = document.getElementById('btnChooseBackupFolder');
-  const intervalSel = document.getElementById('backupIntervalSelect');
-  if(!statusEl) return;
-  intervalSel.value = getBackupInterval();
-  const last = getLastBackupTime();
-  document.getElementById('lastBackupStatus').textContent = last
-    ? `${last.getFullYear()}/${last.getMonth()+1}/${last.getDate()} ${String(last.getHours()).padStart(2,'0')}:${String(last.getMinutes()).padStart(2,'0')}`
-    : 'まだありません';
-
-  if(!backupDirHandle){
-    try{ backupDirHandle = await idbGet('backupDir'); }catch(e){}
-  }
-  if(!backupDirHandle){
-    statusEl.textContent = 'バックアップ先: 未設定';
-    allowBtn.style.display = 'none';
-    chooseBtn.textContent = 'フォルダを選択';
-    return;
-  }
-  chooseBtn.textContent = 'フォルダを変更';
-  try{
-    const perm = await backupDirHandle.queryPermission({mode:'readwrite'});
-    backupDirPermission = perm;
-    if(perm === 'granted'){
-      statusEl.textContent = `バックアップ先: ${backupDirHandle.name} (許可済み)`;
-      allowBtn.style.display = 'none';
-    } else {
-      statusEl.textContent = `バックアップ先: ${backupDirHandle.name} (要許可)`;
-      allowBtn.style.display = editUnlocked ? '' : 'none';
-    }
-  }catch(e){
-    statusEl.textContent = 'バックアップ先: 取得できませんでした';
-  }
-}
-
-async function chooseBackupFolder(){
-  if(!editUnlocked){ openPasswordModal(); return; }
-  if(!('showDirectoryPicker' in window)){
-    alert('お使いのブラウザは自動バックアップ機能(フォルダへの直接保存)に対応していません。Chrome または Edge をご利用ください。');
-    return;
-  }
-  try{
-    const handle = await window.showDirectoryPicker({ mode:'readwrite' });
-    backupDirHandle = handle;
-    await idbSet('backupDir', handle);
-    await refreshBackupUI();
-  }catch(e){ if(e.name!=='AbortError') alert('フォルダを選択できませんでした: '+e.message); }
-}
-async function allowBackupFolder(){
-  if(!backupDirHandle) return;
-  try{
-    const perm = await backupDirHandle.requestPermission({mode:'readwrite'});
-    backupDirPermission = perm;
-    await refreshBackupUI();
-  }catch(e){ alert('許可を取得できませんでした: '+e.message); }
-}
-
-function pad2b(n){ return String(n).padStart(2,'0'); }
-async function runBackupNow(){
-  if(!backupDirHandle || backupDirPermission!=='granted') return false;
-  try{
-    const now = new Date();
-    // 共通ルールに合わせ「アプリ名_バックアップ_日付_時刻.json」にする(2026-09-27 変更。以前は「学校名_backup_日付_時刻.dat」)
-    const stamp = `${now.getFullYear()}-${pad2b(now.getMonth()+1)}-${pad2b(now.getDate())}_${pad2b(now.getHours())}${pad2b(now.getMinutes())}${pad2b(now.getSeconds())}`;
-    const filename = `行事予定_バックアップ_${stamp}.json`;
-    const fileHandleB = await backupDirHandle.getFileHandle(filename, {create:true});
-    const writable = await fileHandleB.createWritable();
-    await writable.write(stateToText(state));
-    await writable.close();
-    setLastBackupTime(now);
-    refreshBackupUI();
-    return true;
-  }catch(e){
-    console.error('backup failed', e);
-    return false;
-  }
-}
-async function maybeRunBackup(){
-  if(!backupDirHandle){
-    try{ backupDirHandle = await idbGet('backupDir'); }catch(e){}
-  }
-  if(!backupDirHandle) return;
-  try{
-    const perm = await backupDirHandle.queryPermission({mode:'readwrite'});
-    backupDirPermission = perm;
-    if(perm!=='granted') return; // ユーザーの許可操作が必要なため自動実行しない
-  }catch(e){ return; }
-
-  const interval = getBackupInterval();
-  const last = getLastBackupTime();
-  const now = new Date();
-  let due = false;
-  if(!last) due = true;
-  else if(interval==='always') due = true;
-  else if(interval==='30min') due = (now - last) >= 30*60*1000;
-  else if(interval==='daily') due = (last.getFullYear()!==now.getFullYear() || last.getMonth()!==now.getMonth() || last.getDate()!==now.getDate());
-  if(due) await runBackupNow();
-}
-setInterval(maybeRunBackup, 5*60*1000); // 長時間操作がない場合にも対応するため5分おきに確認
-
-function downloadFallback(){
-  stampSaveMeta();
+// 「データを書き出す(バックアップ)」: 今の内容を、このパソコンの「ダウンロード」に保存する(共通ルールの書き出し)
+function exportDataDownload(){
+  const t = new Date();
+  const fy = mainYear || state.meta.fiscalYear;
   const blob = new Blob([stateToText(state)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = (state.meta.schoolName||'行事予定')+'.json';
+  a.href = url; a.download = `${APP_FILE_PREFIX}_${fy}年度_書き出し_${ymdStr(t)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
-  markSaved();
-  updateFileVersionInfo();
 }
+// 「データを読み込む(復元)」: ファイルを選んで、見るだけで開く。
+// 戻したいときは、お知らせの「この内容に戻す」で本体へ書き込む(共通ルール 2026-11-21)。
 async function doOpen(){
-  if(supportsFSA){
-    try{
-      const startIn = await getStartInHandle();
-      const [handle] = await window.showOpenFilePicker({
-        // 以前のデータファイル(.dat。中身は同じJSON)も開けるようにしておく
-        types:[{ description:'行事予定データ', accept:{'application/json':['.json','.dat']} }],
-        ...(startIn ? {startIn} : {})
-      });
-      const file = await handle.getFile();
-      loadStateFromText(await file.text());
-      fileHandle = handle;
-      lastKnownModified = file.lastModified; saveConflict = false;
-      await rememberLastFileHandle(handle);
-      // 「開く」でファイルを1つ選んだときは、フォルダから一番新しいものを開く決め方をやめる
-      // (やめないと、わざと選んだファイルが、次の起動や1分おきの確認で別のファイルに替わってしまうため)
-      await forgetDataDir();
-      document.getElementById('btnSave').disabled = !editUnlocked;
-      setCurrentFileDisplay(handle.name);
-      document.getElementById('noFileBanner').style.display='none';
-      afterOpenFile(handle.name);
-    }catch(e){ if(e.name!=='AbortError') alert('開けませんでした: '+e.message); }
-  } else {
-    const inp = document.createElement('input');
-    inp.type='file'; inp.accept='.json,.dat,application/json';
-    inp.onchange = async ()=>{
-      if(!inp.files[0]) return;
-      loadStateFromText(await inp.files[0].text());
-      setCurrentFileDisplay(inp.files[0].name + '(自動上書き不可・保存し直してください)');
-      document.getElementById('noFileBanner').style.display='none';
-    };
-    inp.click();
-  }
+  if(!supportsFSA){ alert('このブラウザでは使えません。Chrome または Edge で開いてください。'); return; }
+  if(editUnlocked){ alert('編集中です。先に「🔒 編集を終える」を押してください。'); return; }
+  try{
+    const startIn = dataDirHandle || await getStartInHandle();
+    const [handle] = await window.showOpenFilePicker({
+      // 以前のデータファイル(.dat。中身は同じJSON)も開けるようにしておく
+      types:[{ description:'行事予定データ', accept:{'application/json':['.json','.dat']} }],
+      ...(startIn ? {startIn} : {})
+    });
+    // データのフォルダの本体そのものを選んだときは、いつもどおり開く(見るだけにしない)
+    if(dataDirHandle){
+      try{
+        for(const m of await listMainFiles(dataDirHandle)){
+          if(await m.handle.isSameEntry(handle)){ await openMainFile(m.handle, m.year); return; }
+        }
+      }catch(e){}
+    }
+    await openViewOnly(handle, 'manual');
+  }catch(e){ if(e.name!=='AbortError') alert('開けませんでした: '+e.message); }
 }
 function loadStateFromText(text){
   try{
@@ -2369,124 +2183,302 @@ function loadStateFromText(text){
     renderDatalists();
     rebuildColumnDefs();
     refreshAll();
-    showSupersededNotice();
   }catch(e){ alert('読み込みに失敗しました: '+e.message); }
 }
 
-//////////////////////// データのフォルダから、日付が一番新しいファイルを開く ////////////////////////
-// ほかの先生のPCは「そのPCで最後に開いたファイル」を覚えて開くため、エクスプローラーでファイルをコピーして
-// 新しい日付の名前にすると、ほかのPCでは一つ前のファイルが開き続けてしまう(2026-11-19 ユーザーから)。
-// そこで、ファイルではなく「データを置いているフォルダ」を覚え、その中で **名前の日付が一番新しい** ファイルを開く。
-// 更新日時で決めないのは、エクスプローラーでコピーすると更新日時がコピー元と同じままになるため(ユーザーと合意: 名前の日付で決める)。
-// 名前の日付の書き方: 2026-11-19 / 2026_11_19 / 2026.11.19 / 20261119 / 2026年11月19日(後ろに時刻 1530 / 15-30 があれば時刻も見る)。
-// バックアップのファイル(名前に「バックアップ」「backup」)と、日付のない名前のファイルは選ばない。
-let dataDirHandle = null;
-function dateKeyFromName(name){
-  const re = /(\d{4})[-_.\/年]?(\d{1,2})[-_.\/月]?(\d{1,2})日?(?:[ _\-]?(\d{2})[:時\-]?(\d{2})分?)?/g;
-  let m, best = null;
-  while((m = re.exec(name))){
-    const y=+m[1], mo=+m[2], d=+m[3];
-    if(y<2000 || y>2100 || mo<1 || mo>12 || d<1 || d>31) continue;
-    let key = ((y*100+mo)*100+d)*10000;
-    if(m[4]!==undefined && +m[4]<24 && +m[5]<60) key += (+m[4])*100 + (+m[5]);
-    if(best===null || key>best) best = key;
+//////////////////////// データのフォルダと年度ごとのファイル(共通ルール 2026-11-21) ////////////////////////
+// ふだんは何もしなくても、起動すると毎回同じ(今の年度の)ファイルが開くようにするため、次のように決めた(apps/CLAUDE.md)。
+// - データのフォルダを最初に一度選んでもらい、IndexedDB(dataDirHandle)に覚える(パソコン・ブラウザごと)。
+// - 本体の名前は「行事予定_YYYY年度.json」。起動したら、名前の年度が一番新しい本体を開く(更新日時は使わない)。
+// - 今の年度の本体がなければ、前の年度を開き「○年度のファイルを作る」を出す。作るのはボタンを押したときだけ。
+// - 編集を始めるとき、その日のバックアップがなければ「バックアップ」フォルダに1つ取る。復元の前・新年度を作る前にも取る。
+// - 手で開いたファイル(バックアップ・前の年度・ほかの名前)は見るだけ。「この内容に戻す」で本体へ書き込む。
+// - 決まった名前の本体がなければ、フォルダの一番新しい .json を見るだけで開き、決まった名前で保存し直すよう案内する(移し替え)。
+// 以前(11/19)の「名前の日付が一番新しいファイルを開く」と「古いファイルの印(supersededBy)」は、これに置き換えて消した。
+// ※ 時間割アプリ(../timetable)もこのフォルダの、年度が一番新しい「行事予定_YYYY年度.json」を読む。
+const APP_FILE_PREFIX = '行事予定';
+const BACKUP_SUBDIR = 'バックアップ';
+let dataDirHandle = null;  // データのフォルダ
+let viewOnly = false;      // 手で開いたファイルを見るだけで開いているとき true(編集・保存しない)
+let viewOnlyName = '';
+let mainYear = null;       // 開いている本体の年度(ファイル名の年度)
+function mainFileName(fy){ return `${APP_FILE_PREFIX}_${fy}年度.json`; }
+function currentFiscalYear(){ const n=new Date(); return n.getMonth()>=3 ? n.getFullYear() : n.getFullYear()-1; }
+function yearOfMainName(name){ const m = name.match(/^行事予定_(\d{4})年度\.json$/); return m ? +m[1] : null; }
+function ymdStr(t){ return `${t.getFullYear()}-${pad2(t.getMonth()+1)}-${pad2(t.getDate())}`; }
+function isBackupName(name){ return /バックアップ|backup/i.test(name); }
+// フォルダの中の本体(行事予定_YYYY年度.json)を、年度の新しい順に
+async function listMainFiles(dir){
+  const out = [];
+  for await (const e of dir.values()){
+    if(e.kind !== 'file') continue;
+    const y = yearOfMainName(e.name);
+    if(y) out.push({year:y, handle:e});
+  }
+  return out.sort((a,b)=> b.year - a.year);
+}
+// 移し替え用: 決まった名前の本体がないとき、フォルダの一番新しい .json(バックアップは除く)
+async function findMigrationCandidate(dir){
+  let best = null, bestMod = -1;
+  for await (const e of dir.values()){
+    if(e.kind !== 'file' || !/\.(json|dat)$/i.test(e.name) || isBackupName(e.name)) continue;
+    let mod = 0; try{ mod = (await e.getFile()).lastModified; }catch(err){}
+    if(mod > bestMod){ best = e; bestMod = mod; }
   }
   return best;
 }
-async function findNewestInDir(dir){
-  let best = null, bestKey = -1, bestMod = -1;
-  for await (const entry of dir.values()){
-    if(entry.kind !== 'file') continue;
-    if(!/\.(json|dat)$/i.test(entry.name) || /バックアップ|backup/i.test(entry.name)) continue;
-    const key = dateKeyFromName(entry.name);
-    if(key===null || key < bestKey) continue;
-    let mod = 0;
-    try{ mod = (await entry.getFile()).lastModified; }catch(e){}
-    // 同じ日付が2つあるときは、更新日時の新しいほう
-    if(key > bestKey || mod > bestMod){ best = entry; bestKey = key; bestMod = mod; }
-  }
-  return best;
+// お知らせの帯(画面上部・どのタブでも見える)
+function setFileBanner(html, kind){
+  const b = document.getElementById('fileBanner');
+  if(!html){ b.style.display = 'none'; b.innerHTML = ''; return; }
+  b.innerHTML = html;
+  b.className = 'banner ' + (kind==='warn' ? '' : 'info');
+  b.style.cssText = 'display:block;margin:8px 16px;font-size:14px;' + (kind==='warn' ? 'background:#fdecea;border-color:#e6a9a3;color:#8a1f17;' : '');
 }
-async function forgetDataDir(){
-  if(!dataDirHandle){ try{ dataDirHandle = await idbGet('dataDirHandle'); }catch(e){} }
-  if(!dataDirHandle) return;
-  dataDirHandle = null;
-  try{ await idbSet('dataDirHandle', null); }catch(e){}
-  document.getElementById('newerFileBanner').style.display = 'none';
-}
-// フォルダの中の一番新しいファイルを開く。開いた(またはすでに開いていた)ら true
-async function openNewestFromDataDir(dir, quiet){
-  const newest = await findNewestInDir(dir);
-  if(!newest){
-    if(!quiet) alert(`フォルダ「${dir.name}」に、名前に日付の入ったデータファイルが見つかりませんでした。\n\nデータファイルの名前に「行事予定_2026-11-19.json」のように日付を入れてください(バックアップのファイルは選びません)。`);
-    return false;
-  }
-  if(fileHandle){ try{ if(await fileHandle.isSameEntry(newest)) return true; }catch(e){} }
-  await openHandleAsCurrentFile(newest);
-  setCurrentFileDisplay(`${newest.name}(フォルダ「${dir.name}」の最新)`);
-  document.getElementById('newerFileBanner').style.display = 'none';
-  return true;
-}
-async function doOpenFolder(){
-  if(!window.showDirectoryPicker){ alert('このブラウザでは使えません。Chrome または Edge で開いてください。'); return; }
-  if(editUnlocked){ alert('編集中はフォルダから開けません。先に「🔒 編集を終える」を押してください。'); return; }
+function onBannerClick(id, fn){ const el = document.getElementById(id); if(el) el.addEventListener('click', fn); }
+async function ensureDirPermission(dir, ask){
   try{
-    const startIn = await getStartInHandle();
-    const dir = await window.showDirectoryPicker({ mode:'readwrite', ...(startIn ? {startIn} : {}) });
-    if(await openNewestFromDataDir(dir, false)){
-      dataDirHandle = dir;
-      try{ await idbSet('dataDirHandle', dir); }catch(e){}
-      alert(`フォルダ「${dir.name}」の中で、名前の日付が一番新しい「${fileHandle.name}」を開きました。\n\n次からは、アプリを開くたびに、このフォルダの一番新しい日付のファイルが開きます。`);
-    }
-  }catch(e){ if(e.name!=='AbortError') alert('フォルダを開けませんでした: '+e.message); }
-}
-// 起動時: フォルダを覚えていれば、そこから開く。フォルダを使っていなければ false(前回のファイルを開く)
-async function tryAutoLoadFromDataDir(){
-  let dir;
-  try{ dir = await idbGet('dataDirHandle'); }catch(e){ return false; }
-  if(!dir) return false;
-  dataDirHandle = dir;
-  let perm;
-  try{ perm = await dir.queryPermission({mode:'readwrite'}); }catch(e){ return false; }
-  if(perm === 'granted'){
-    try{ if(await openNewestFromDataDir(dir, true)) return true; }catch(e){}
-    return false;
-  }
-  const b = document.getElementById('noFileBanner');
-  b.innerHTML = `データのフォルダ「${escapeHtml(dir.name)}」から、日付が一番新しいファイルを開くには、下のボタンを押してください(ブラウザの仕様上、起動のたびに1回だけ許可が必要です)。 <button id="btnAutoOpenDir">最新のファイルを開く</button>`;
-  b.style.display = 'block'; b.className = 'banner info';
-  document.getElementById('btnAutoOpenDir').addEventListener('click', async ()=>{
-    try{
-      const p = await dir.requestPermission({mode:'readwrite'});
-      if(p !== 'granted') return;
-      await openNewestFromDataDir(dir, false);
-    }catch(e){ alert('開けませんでした: '+e.message); }
-  });
-  return true;
-}
-// 開いている間に、フォルダにもっと新しい日付のファイルが置かれたか確かめる。
-// 閲覧中ならそのまま開き直す。編集中は上書きの心配があるので、お知らせだけ出す。
-async function checkNewerInDataDir(){
-  if(!dataDirHandle || sampleMode || !fileHandle) return;
-  try{
-    if(await dataDirHandle.queryPermission({mode:'readwrite'}) !== 'granted') return;
-    const newest = await findNewestInDir(dataDirHandle);
-    if(!newest || await fileHandle.isSameEntry(newest)) return;
-    if(!editUnlocked){
-      await openNewestFromDataDir(dataDirHandle, true);
-      setStatus(`フォルダに置かれた新しい日付のファイル「${newest.name}」を開きました`, 'saved');
-    } else {
-      const b = document.getElementById('newerFileBanner');
-      b.innerHTML = `⚠ フォルダに、新しい日付のファイル「${escapeHtml(newest.name)}」が置かれました。いま編集しているのは「${escapeHtml(fileHandle.name)}」です。「🔒 編集を終える」を押すと、新しいファイルに切り替わります。`;
-      b.style.display = 'block';
-    }
-  }catch(e){ /* 共有サーバーにつながらないときなどは、そのままにする */ }
+    if(await dir.queryPermission({mode:'readwrite'}) === 'granted') return true;
+    if(ask) return (await dir.requestPermission({mode:'readwrite'})) === 'granted';
+  }catch(e){}
+  return false;
 }
 
-//////////////////////// 前回のファイルを起動時に開く ////////////////////////
-// 「開く」または「名前を付けて保存」で使ったファイルのハンドルを起動時にも参照し、
-// 許可が残っていればそのまま読み込む(=最新のデータが最初から表示される)。
-// ブラウザの仕様上、許可が切れている場合はボタンを1回押してもらう必要がある。
+// ---- バックアップ ----
+async function getBackupDir(create){ return dataDirHandle.getDirectoryHandle(BACKUP_SUBDIR, {create}); }
+// 本体のファイルにある内容を、そのまま「バックアップ」フォルダへ写す
+async function writeBackupOf(handle, year){
+  const text = await (await handle.getFile()).text();
+  const t = new Date();
+  const base = `${APP_FILE_PREFIX}_${year}年度_バックアップ_${ymdStr(t)}_${pad2(t.getHours())}${pad2(t.getMinutes())}`;
+  const dir = await getBackupDir(true);
+  // 同じ分に2つ取るとき(戻す前と新年度の前など)は、前のバックアップを消さないよう _2, _3 を付ける
+  let name = base + '.json';
+  for(let i=2; i<100; i++){
+    try{ await dir.getFileHandle(name); }catch(e){ break; }
+    name = `${base}_${i}.json`;
+  }
+  const fh = await dir.getFileHandle(name, {create:true});
+  const w = await fh.createWritable(); await w.write(text); await w.close();
+  return name;
+}
+// 編集を始めるとき: その本体のその日のバックアップがまだなければ1つ取る。
+// 何人が編集しても1日1つになるよう、「バックアップ」フォルダの中を見て決める(パソコンごとの記録では決めない)。
+async function ensureDailyBackup(){
+  if(!dataDirHandle || !fileHandle || !mainYear || viewOnly || sampleMode) return;
+  const prefix = `${APP_FILE_PREFIX}_${mainYear}年度_バックアップ_${ymdStr(new Date())}_`;
+  const dir = await getBackupDir(true);
+  for await (const e of dir.values()){ if(e.name.startsWith(prefix)) return; }
+  await writeBackupOf(fileHandle, mainYear);
+}
+async function countBackups(){
+  if(!dataDirHandle) return null;
+  let dir; try{ dir = await getBackupDir(false); }catch(e){ return 0; }
+  let n = 0;
+  for await (const e of dir.values()){ if(e.kind==='file' && e.name.startsWith(APP_FILE_PREFIX+'_') && e.name.includes('_バックアップ_')) n++; }
+  return n;
+}
+
+// ---- 開く ----
+async function openMainFile(handle, year){
+  await openHandleAsCurrentFile(handle);
+  viewOnly = false; viewOnlyName = ''; mainYear = year;
+  // 年度はファイル名で決まる(中身の年度がずれていたら名前に合わせる。保存すると中身も直る)
+  if(state.meta.fiscalYear !== year){ state.meta.fiscalYear = year; populateMonthSelect(); refreshAll(); }
+  setCurrentFileDisplay(handle.name);
+  applyLockUI();
+  await updateYearBanner();
+}
+async function openViewOnly(handle, mode){
+  const file = await handle.getFile();
+  loadStateFromText(await file.text());
+  fileHandle = null; lastKnownModified = 0; mainYear = null;
+  viewOnly = true; viewOnlyName = handle.name;
+  setCurrentFileDisplay(handle.name + '(見るだけ)');
+  applyLockUI();
+  const at = state.meta && state.meta.savedAt ? new Date(state.meta.savedAt) : null;
+  const atText = at && !isNaN(at.getTime()) ? `(最後に保存: ${at.getFullYear()}/${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())})` : '';
+  const target = mainFileName(state.meta.fiscalYear);
+  if(mode === 'migrate'){
+    setFileBanner(`このフォルダには、決まった名前のデータのファイル「${escapeHtml(target)}」がまだありません。いちばん新しい「${escapeHtml(handle.name)}」を<strong style="display:inline">見るだけ</strong>で開いています${atText}。<br>内容を確かめて、<button id="fbRestore">「${escapeHtml(target)}」の名前で保存し直す</button> を押してください。次からは、そのファイルが自動で開きます。`, 'warn');
+  } else {
+    setFileBanner(`見るだけで開いています:「${escapeHtml(handle.name)}」${atText}。編集はできません。 <button id="fbRestore">この内容に戻す</button>${dataDirHandle ? ' <button id="fbBack">いつものファイルに戻る</button>' : ''}`, 'warn');
+  }
+  onBannerClick('fbRestore', restoreToMain);
+  onBannerClick('fbBack', ()=> openFromDataDir(dataDirHandle, true));
+  setStatus(`「${handle.name}」を見るだけで開きました`, 'saved');
+}
+// データのフォルダから、年度が一番新しい本体を開く(なければ移し替えの案内・新しく始める案内)
+async function openFromDataDir(dir, ask){
+  if(!await ensureDirPermission(dir, ask)) return false;
+  dataDirHandle = dir;
+  const mains = await listMainFiles(dir);
+  if(mains.length){ await openMainFile(mains[0].handle, mains[0].year); return true; }
+  const cand = await findMigrationCandidate(dir);
+  if(cand){ await openViewOnly(cand, 'migrate'); return true; }
+  fileHandle = null; mainYear = null; viewOnly = false;
+  const fy = currentFiscalYear();
+  setFileBanner(`データのフォルダ「${escapeHtml(dir.name)}」に、まだデータのファイルがありません。 <button id="fbNewStart">「${escapeHtml(mainFileName(fy))}」を作って始める</button>(見本で試すときは、設定タブの「サンプルデータをすぐに試す」)`, 'info');
+  onBannerClick('fbNewStart', ()=> startNewFile(fy));
+  applyLockUI();
+  return true;
+}
+// 空のフォルダで新しく始める
+async function startNewFile(fy){
+  if(!dataDirHandle) return;
+  if(!confirm(`データのフォルダ「${dataDirHandle.name}」に「${mainFileName(fy)}」を作って、新しく始めます。よろしいですか？`)) return;
+  try{
+    const obj = emptyState(); obj.meta.fiscalYear = fy;
+    const h = await dataDirHandle.getFileHandle(mainFileName(fy), {create:true});
+    const w = await h.createWritable(); await w.write(stateToText(obj)); await w.close();
+    setFileBanner('');
+    await openMainFile(h, fy);
+  }catch(e){ alert('ファイルを作れませんでした: '+e.message+'\n\nデータのフォルダに書き込めるか(共有サーバーにつながっているか)確かめてください。'); }
+}
+// 本体の年度についてのお知らせ(新しい年度のファイルがある/今の年度のファイルがまだない)
+async function updateYearBanner(){
+  if(!dataDirHandle || viewOnly || !mainYear) return;
+  let mains = [];
+  try{ mains = await listMainFiles(dataDirHandle); }catch(e){ return; }
+  const newest = mains[0];
+  const cfy = currentFiscalYear();
+  if(newest && newest.year > mainYear){
+    setFileBanner(`新しい年度のファイル「${escapeHtml(newest.handle.name)}」があります。いま開いているのは「${escapeHtml(mainFileName(mainYear))}」です。 <button id="fbOpenNewest">「${escapeHtml(newest.handle.name)}」を開く</button>`, 'warn');
+    onBannerClick('fbOpenNewest', async ()=>{
+      if(editUnlocked){ alert('編集中です。先に「🔒 編集を終える」を押してください。'); return; }
+      await openMainFile(newest.handle, newest.year);
+    });
+  } else if(mainYear < cfy){
+    setFileBanner(`今の年度(${cfy}年度)のファイルがまだありません。いまは「${escapeHtml(mainFileName(mainYear))}」を開いています。 <button id="fbNewYear">${cfy}年度のファイルを作る</button>`, 'info');
+    onBannerClick('fbNewYear', createNewYearFile);
+  } else {
+    setFileBanner('');
+  }
+}
+// 「この内容に戻す」: 見るだけで開いている内容を、その年度の本体に書き込む(先に本体のバックアップを取る)
+async function restoreToMain(){
+  if(sampleMode || !viewOnly) return;
+  if(!dataDirHandle){ alert('先に、設定タブの「データのフォルダを選ぶ」で、データのフォルダを選んでください。'); return; }
+  if(!await ensureDirPermission(dataDirHandle, true)) return;
+  const fy = state.meta.fiscalYear;
+  const name = mainFileName(fy);
+  let target = null;
+  try{ target = await dataDirHandle.getFileHandle(name); }catch(e){}
+  try{
+    if(target){
+      const cur = JSON.parse(await (await target.getFile()).text());
+      if(isEditLockFresh(cur.editLock) && !confirm(`⚠ いま${cur.editLock.by ? cur.editLock.by+'先生が' : 'ほかの場所で'}「${name}」を編集中です。\n戻すと、その先生の入力が消えるおそれがあります。それでも続けますか？`)) return;
+    }
+  }catch(e){}
+  const msg = target
+    ? `「${viewOnlyName}」の内容で、「${name}」を書き換えます。\n\n今の「${name}」は、先に「バックアップ」フォルダにバックアップを取ります。\n\nよろしいですか？`
+    : `「${viewOnlyName}」の内容を、「${name}」としてデータのフォルダに保存します。\n次からは、このファイルが自動で開きます。\n\nよろしいですか？`;
+  if(!confirm(msg)) return;
+  try{
+    if(target) await writeBackupOf(target, fy);
+    else target = await dataDirHandle.getFileHandle(name, {create:true});
+    const obj = JSON.parse(stateToText(state));
+    obj.editLock = { active:false, since:null, by:'', session:'' };
+    if(!obj.meta) obj.meta = {};
+    obj.meta.savedAppVersion = APP_VERSION; obj.meta.savedAt = new Date().toISOString();
+    const w = await target.createWritable(); await w.write(stateToText(obj)); await w.close();
+    setFileBanner('');
+    await openMainFile(target, fy);
+    setStatus(`「${name}」を、この内容に戻しました`, 'saved');
+  }catch(e){ alert('戻せませんでした: '+e.message+'\n\nデータのフォルダに書き込めるか(共有サーバーにつながっているか)確かめてください。'); }
+}
+// 新しい年度のファイルを作る(ボタンを押したときだけ)。何を引き継ぐかは HANDOFF に書いた。
+async function createNewYearFile(){
+  if(sampleMode){ alert('見本で試している間は作れません。'); return; }
+  if(!dataDirHandle){ alert('先に「データのフォルダを選ぶ」で、データのフォルダを選んでください。'); return; }
+  if(editUnlocked){ alert('編集中です。先に「🔒 編集を終える」を押してください。'); return; }
+  if(!await ensureDirPermission(dataDirHandle, true)) return;
+  const mains = await listMainFiles(dataDirHandle);
+  const base = mains[0];
+  if(!base){ alert('もとにする年度のファイル(行事予定_YYYY年度.json)がフォルダにありません。'); return; }
+  const ny = base.year + 1;
+  const name = mainFileName(ny);
+  if(!confirm(`「${name}」を作ります。\n\n「${base.handle.name}」から、設定・候補・${base.year}年度の予定を引き継ぎます(${base.year}年度の予定は、前の年度の行事を候補に入れるときなどに使います)。編集の記録は引き継ぎません。\n\n作る前に「${base.handle.name}」のバックアップを取ります。よろしいですか？`)) return;
+  try{
+    await writeBackupOf(base.handle, base.year);
+    const obj = JSON.parse(await (await base.handle.getFile()).text());
+    normalizeState(obj);
+    const keepFrom = `${base.year}-04-01`; // 前の年度(base.year)の4月より前のものは引き継がない
+    ['days','manualDayFlags','holidayOverrides','mealCountOverrides','actuals'].forEach(k=>{
+      if(obj[k] && typeof obj[k]==='object') Object.keys(obj[k]).forEach(d=>{ if(d < keepFrom) delete obj[k][d]; });
+    });
+    if(Array.isArray(obj.printCounts)) obj.printCounts = obj.printCounts.filter(x=> !x.date || x.date >= `${ny}-04-01`);
+    obj.eventHourEntries = [];               // 行事の時数の手入力は年度ごと
+    obj.meta.fiscalYear = ny;
+    obj.meta.versionLabelMonthly = ''; obj.meta.versionLabelAnnual = '';
+    delete obj.meta.savedAt;
+    obj.editLog = [];
+    obj.editLock = { active:false, since:null, by:'', session:'' };
+    const h = await dataDirHandle.getFileHandle(name, {create:true});
+    const w = await h.createWritable(); await w.write(stateToText(obj)); await w.close();
+    await openMainFile(h, ny);
+    alert(`「${name}」を作って開きました。次からは、このファイルが自動で開きます。`);
+  }catch(e){ alert('作れませんでした: '+e.message+'\n\nデータのフォルダに書き込めるか(共有サーバーにつながっているか)確かめてください。'); }
+}
+// 「データのフォルダを選ぶ」
+async function chooseDataDir(){
+  if(!window.showDirectoryPicker){ alert('このブラウザでは使えません。Chrome または Edge で開いてください。'); return; }
+  if(editUnlocked){ alert('編集中です。先に「🔒 編集を終える」を押してください。'); return; }
+  try{
+    const startIn = dataDirHandle || await getStartInHandle();
+    const dir = await window.showDirectoryPicker({ mode:'readwrite', ...(startIn ? {startIn} : {}) });
+    dataDirHandle = dir;
+    try{ await idbSet('dataDirHandle', dir); }catch(e){}
+    await openFromDataDir(dir, true);
+    refreshDataDirUI();
+  }catch(e){ if(e.name!=='AbortError') alert('フォルダを選べませんでした: '+e.message); }
+}
+// 起動したとき
+async function startupOpenDataDir(){
+  if(!supportsFSA) return;
+  let dir = null;
+  try{ dir = await idbGet('dataDirHandle'); }catch(e){}
+  if(!dir){
+    setFileBanner('はじめに、データのファイルを置くフォルダ(校務共有サーバーの「行事予定」のフォルダなど)を選んでください。パソコンごとに最初の1回だけです。 <button id="fbChooseDir">データのフォルダを選ぶ</button>', 'info');
+    onBannerClick('fbChooseDir', chooseDataDir);
+    return;
+  }
+  dataDirHandle = dir;
+  try{
+    if(await openFromDataDir(dir, false)) return;
+  }catch(e){
+    setFileBanner(`データのフォルダ「${escapeHtml(dir.name)}」を開けませんでした(共有サーバーにつながっていない、フォルダの名前や場所が変わった、など)。 <button id="fbChooseDir">データのフォルダを選び直す</button>`, 'warn');
+    onBannerClick('fbChooseDir', chooseDataDir);
+    return;
+  }
+  // 許可がまだ: ブラウザの決まりで、ボタンを押さないと許可の画面を出せない
+  setFileBanner(`データのフォルダ「${escapeHtml(dir.name)}」を開くには、下のボタンを押してください(ブラウザの決まりで、起動のたびに1回だけ許可が必要です)。 <button id="fbAllowDir">データを開く</button>`, 'info');
+  onBannerClick('fbAllowDir', async ()=>{
+    try{ if(!await openFromDataDir(dir, true)) return; refreshDataDirUI(); }
+    catch(e){ alert('開けませんでした: '+e.message+'\n\n設定タブの「データのフォルダを選ぶ」で、選び直してください。'); }
+  });
+}
+// 設定タブの表示
+async function refreshDataDirUI(){
+  const st = document.getElementById('dataDirStatus');
+  if(!st) return;
+  st.textContent = dataDirHandle ? `データのフォルダ: ${dataDirHandle.name}` : 'データのフォルダ: まだ選んでいません';
+  const n = await countBackups().catch(()=>null);
+  document.getElementById('backupCountStatus').textContent = n===null ? '(データのフォルダを開くと表示します)' : `「バックアップ」フォルダに ${n} 件`;
+  const btn = document.getElementById('btnNewYearFile');
+  let next = null;
+  try{ if(dataDirHandle){ const m = await listMainFiles(dataDirHandle); if(m.length) next = m[0].year + 1; } }catch(e){}
+  btn.textContent = next ? `${next}年度のファイルを作る` : '新しい年度のファイルを作る';
+  btn.disabled = !next || sampleMode || editUnlocked;
+}
+// 開いている間に、ほかのパソコンで新しい年度のファイルが作られたら知らせる
+async function checkNewerYearFile(){
+  if(!dataDirHandle || sampleMode || viewOnly || !mainYear) return;
+  try{ if(await dataDirHandle.queryPermission({mode:'readwrite'}) !== 'granted') return; }catch(e){ return; }
+  await updateYearBanner();
+}
+
+//////////////////////// ファイルを開く(本体) ////////////////////////
 async function openHandleAsCurrentFile(handle){
   const file = await handle.getFile();
   loadStateFromText(await file.text());
@@ -2498,26 +2490,11 @@ async function openHandleAsCurrentFile(handle){
   document.getElementById('noFileBanner').style.display = 'none';
   afterOpenFile(handle.name);
 }
-// ファイルを開いたあと: いつ保存された内容かを知らせる。バックアップのファイルなら注意を出す。
-// (「開く」で一度バックアップのファイルを選ぶと、次からはそれが「前回のファイル」として自動で開くため、
-//  古い内容だと気づけるようにする。2026-10-26)
+// ファイルを開いたあと: いつ保存された内容かを知らせる
 function afterOpenFile(name){
   const at = state.meta && state.meta.savedAt ? new Date(state.meta.savedAt) : null;
   const atText = at && !isNaN(at.getTime()) ? `(最後に保存: ${at.getMonth()+1}/${at.getDate()} ${pad2(at.getHours())}:${pad2(at.getMinutes())})` : '';
   setStatus(`「${name}」を開きました${atText}`, 'saved');
-  const sup = state.meta && state.meta.supersededBy;
-  if(sup){
-    alert(`開いたファイル「${name}」は古いファイルです。
-
-「${sup.name}」に保存し直されているので、最新の内容は「${sup.name}」にあります。
-
-画面上部の「「${sup.name}」を開く」ボタンを押して、「${sup.name}」を選んでください。次からは、選んだファイルが自動で開きます。`);
-    // ここで開く画面を出さないのは、起動時の自動読み込みではボタンを押していないので、ブラウザが開く画面を出させないため
-    return;
-  }
-  if(/バックアップ|backup/i.test(name)){
-    alert(`開いたファイル「${name}」は、バックアップのファイルのようです。\n\nバックアップは、保存した時点の古い内容です。ふだん使うデータファイルを、上の「開く」で選び直してください(次からは、選び直したファイルが自動で開きます)。\n\n復元のために開いたときは、内容を確かめてから「名前を付けて保存」で、いつものファイル名に保存し直してください。`);
-  }
 }
 // ほかのパソコンでファイルが保存されていたら、最新の内容を読み直す(閲覧中だけ。編集中は保存のときに確かめる)。
 // ページを開いたままにしておくと、古い内容のまま見続けてしまうため(2026-10-26)。
@@ -2531,34 +2508,10 @@ async function refreshIfChangedOnDisk(){
     setStatus('ほかの場所で保存された、最新の内容を読み込みました', 'saved');
   }catch(e){ /* 共有サーバーにつながらないときなどは、そのままにする */ }
 }
-async function refreshFromDisk(){ await checkNewerInDataDir(); await refreshIfChangedOnDisk(); }
+async function refreshFromDisk(){ await refreshIfChangedOnDisk(); await checkNewerYearFile(); }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromDisk(); });
 window.addEventListener('focus', refreshFromDisk);
 setInterval(refreshFromDisk, 60*1000);
-async function tryAutoLoadLastFile(){
-  if(!supportsFSA) return;
-  if(await tryAutoLoadFromDataDir()) return;
-  let handle;
-  try{ handle = await getStartInHandle(); }catch(e){ return; }
-  if(!handle) return;
-  let perm;
-  try{ perm = await handle.queryPermission({mode:'readwrite'}); }catch(e){ return; }
-  if(perm === 'granted'){
-    try{ await openHandleAsCurrentFile(handle); }catch(e){ /* ファイルが移動・削除された等の場合は何もせず通常起動にする */ }
-    return;
-  }
-  const b = document.getElementById('noFileBanner');
-  b.innerHTML = `前回開いていたファイル「${handle.name}」を開くには、下のボタンを押してください(ブラウザの仕様上、起動のたびに1回だけ許可が必要です)。 <button id="btnAutoOpenLast">前回のファイルを開く</button>`;
-  b.style.display = 'block'; b.className = 'banner info';
-  document.getElementById('btnAutoOpenLast').addEventListener('click', async ()=>{
-    try{
-      const p = await handle.requestPermission({mode:'readwrite'});
-      if(p !== 'granted') return;
-      await openHandleAsCurrentFile(handle);
-    }catch(e){ alert('開けませんでした: '+e.message); }
-  });
-}
-
 //////////////////////// タブ切替 ////////////////////////
 // 月間予定表・年間予定表は、それぞれ1つのタブの中で教員用/家庭用を切り替えて表示する
 let monthlyAudience = 'teacher';
@@ -5017,18 +4970,19 @@ function renderSettingsTab(){
   document.getElementById('presetWeeklyDuty').value = state.presets.weeklyDuty.join('、');
   renderRequiredHoursEditor();
   renderPrintCountList();
-  refreshBackupUI();
+  refreshDataDirUI();
   [1,2,3].forEach(g=>{ document.getElementById('setClassCountG'+g).value = state.classCounts['g'+g]; });
   ['setSchoolName','setVersionLabelMonthly','setVersionLabelAnnual','setFiscalYear','setTerm2Start','setTerm3Start',
    'setSupportClassEnabled','setClassCountG1','setClassCountG2','setClassCountG3',
    'presetClub','presetLunch','presetPeriod','presetWeeklyDuty',
    'btnImportPrevYearEvents','setColorHoliday','setColorAbsent','btnResetColors',
    'holidayOvrDate','holidayOvrType','holidayOvrLabel','btnHolidayOvrSave',
-   'printCountDate','printCountTarget','printCountWho','printCountNum','printCountNote','btnPrintCountSave',
-   'btnChooseBackupFolder','backupIntervalSelect'].forEach(id=>{
+   'printCountDate','printCountTarget','printCountWho','printCountNum','printCountNote','btnPrintCountSave'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.disabled = !editUnlocked;
   });
+  // 年度はファイル名(行事予定_YYYY年度.json)で決まるので、本体を開いているときは変えられない。新しい年度はファイルを作る
+  if(mainYear && !sampleMode) document.getElementById('setFiscalYear').disabled = true;
 }
 function renderPrintCountList(){
   const wrap = document.getElementById('printCountList');
@@ -5446,6 +5400,7 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
+    <li><strong>2026-11-21</strong>: データのファイルの置き方を変えました。データのフォルダを一度選ぶと、アプリを開くたびに、そのフォルダの「行事予定_○年度.json」(年度が一番新しいもの)が自動で開きます。編集を始めるとき、その日のバックアップを「バックアップ」フォルダに1つ取ります。「データを読み込む(復元)」で開いたファイルは見るだけになり、「この内容に戻す」でいつものファイルに戻せます。新しい年度のファイルはボタンで作ります。11/19 の「フォルダから開く」「名前を付けて保存」「自動バックアップ(フォルダを選ぶ方式)」は、これに置き換えてなくしました。</li>
     <li><strong>2026-11-19</strong>: 「フォルダから開く」を追加しました。データを置いているフォルダを一度選ぶと、アプリを開くたびに、その中で名前の日付が一番新しいファイル(例:行事予定_2026-11-19.json)を自動で開きます。エクスプローラーでファイルをコピーして新しい日付の名前にしたときも、ほかの先生のパソコンで新しいファイルが開きます。</li>
     <li><strong>2026-11-19</strong>: 「名前を付けて保存」で新しいファイルに保存し直したとき、前のファイルに「新しいファイルはこちら」の印を残すようにしました。ほかの先生のパソコンで前のファイルが開いたときは、お知らせが出て、新しいファイルを選ぶ画面が開きます(一度選べば、次からは新しいファイルが自動で開きます)。</li>
     <li><strong>2026-11-16</strong>: 横に長い表の上にも横スクロールバーを付けました(実績の表、時数・集計の表)。月間予定表・年間予定表の画面は、表の枠の中でスクロールするようにし、下へスクロールしても上の見出し(月間は日・曜の列も)が隠れないようにしました。印刷・Excelは変わりません。</li>
@@ -5550,24 +5505,24 @@ document.getElementById('helpBody').innerHTML = `
   右上の「🔒 編集する」ボタンから名前を入力すると「🔓 編集モード」になり、入力や保存ができるようになります(パスワードはありません)。ファイルを開き直すと、
   前回編集モードだったかどうかに関わらず、必ず「閲覧のみ」の状態に戻ります。</p>
 
-  <h4>「フォルダから開く」(いつも一番新しいファイルを開く)</h4>
-  <p>画面上部の「フォルダから開く」で、データファイルを置いているフォルダを選ぶと、そのフォルダの中で<strong>名前の日付が一番新しいファイル</strong>を開きます。
-  次からは、アプリを開くたびに同じフォルダの一番新しい日付のファイルが自動で開きます(許可のボタンを1回押すことがあります)。</p>
+  <h4>データのフォルダと年度ごとのファイル</h4>
+  <p>データは、校務共有サーバーのフォルダに、年度ごとに <code>行事予定_2026年度.json</code> のような名前で置きます。</p>
   <ul>
-    <li>ファイル名に日付を入れてください。例:<code>行事予定_2026-11-19.json</code>(<code>20261119</code>・<code>2026年11月19日</code> でも分かります)。</li>
-    <li>エクスプローラーでファイルをコピーして、新しい日付の名前にしてもかまいません。ほかの先生のパソコンでも、新しいファイルが開きます。</li>
-    <li>名前に「バックアップ」が入るファイルと、日付のないファイルは選びません。</li>
-    <li>見ている間に新しい日付のファイルが置かれると、自動で切り替わります。編集中のときは、画面上部にお知らせが出て、「編集を終える」と切り替わります。</li>
-    <li>「開く」でファイルを1つ選ぶと、フォルダから開く決め方は終わり、選んだファイルを開くようになります。</li>
+    <li><strong>最初に1回(パソコンごと):</strong> 画面上部の案内か、設定タブの「データのフォルダを選ぶ」で、データのフォルダを選びます。</li>
+    <li><strong>ふだん:</strong> アプリを開くと、そのフォルダで名前の年度が一番新しいファイルが自動で開きます(「データを開く」ボタンを1回押すことがあります。ブラウザの決まりです)。ファイルを選ぶ必要はありません。</li>
+    <li><strong>新しい年度:</strong> 今の年度のファイルがまだないときは、画面上部に「○年度のファイルを作る」が出ます。設定タブの「○年度のファイルを作る」でも作れます(次の年度の予定を早めに組むとき)。設定・候補・前の年度の予定を引き継ぎ、編集の記録は引き継ぎません。作るのはボタンを押したときだけです。</li>
+    <li><strong>バックアップ:</strong> 編集を始めるとき、その日のバックアップがまだなければ、データのフォルダの中の「バックアップ」フォルダに1つ取ります(編集を始める前の内容)。戻す前・新しい年度を作る前にも取ります。アプリでは消さないので、多くなったらエクスプローラーで古いものを消してください。件数は設定タブに出ます。</li>
+    <li><strong>前の内容に戻したいとき:</strong> 「データを読み込む(復元)」で「バックアップ」フォルダのファイルなどを選ぶと、<strong>見るだけ</strong>で開きます(編集はできません)。内容を確かめて、画面上部の「この内容に戻す」を押すと、いつものファイルがその内容になります(先にいつものファイルのバックアップを取ります)。「いつものファイルに戻る」で、元の表示に戻ります。次にアプリを開いたときも、いつものファイルが開きます。</li>
+    <li>エクスプローラーでファイルをコピーして日付の名前にする運用は、もう要りません。</li>
   </ul>
-  <h4>名前の入力と「編集の記録」</h4>
+  <h4>名前の入力と「編集の記録」</h4>  <h4>名前の入力と「編集の記録」</h4>
   <p>「編集する」を押したときは、名前を入れてください(空のままでは始められません。名前はこのパソコンのブラウザが覚えるので、次からは最初から入っています)。ほかの先生の画面には「⚠ ○○先生が編集中(15:20〜)」と出ます。上の「編集の記録」ボタンを押すと、だれが・いつ編集したか(日付・始めた時刻〜最後に保存した時刻)を新しい順に見られます。何を変えたかは記録しません。新しいものから200件まで残ります。サンプルデータには架空の記録が入っていて、試しに編集しても記録は増えません。</p>
 
   <h4>職場サーバー等で共有する場合の同時編集への注意</h4>
   <p>このアプリには、複数人が同時に編集した場合の排他制御(片方の変更を待たせる仕組み)はありません。.jsonファイルを職場サーバーなど複数人がアクセスできる場所に置いている場合、同時に編集して保存すると、後から保存した方の内容で上書きされてしまいます。これを防ぐ簡易的な仕組みとして、「編集する」を押した時点の状態を記録しており、直近15分以内に別の先生が編集している場合は、編集を始める前に確認メッセージが表示されます。また、閲覧のみの状態でも、画面上部に「⚠ ○○先生が編集中(◯◯:◯◯〜)」と表示されることがあります。ただしこれはあくまで簡易的な目安です。基本的には「編集は同時に1人だけ」という運用を徹底してください。</p>
 
   <h4>テストデータでの動作確認</h4>
-  <p>「設定」タブの「テストデータ」から、元のExcelファイルの実際の記載内容を参考にした4月分のサンプルデータを.jsonファイルとして書き出せます。現在編集中のデータには影響しません。書き出したファイルを「開く」で読み込むと、入力例が入った状態で各タブの表示やExcel出力を試せます(パスワードは初期値の0000のままです)。すぐに試したいだけなら「サンプルデータをすぐに試す」ボタンで、ファイルを介さずその場で画面上のデータをサンプルに切り替えられます。この操作は開いていたファイル自体を一切変更・上書きしません(保存先が未設定の状態になるため、誤って元のファイルに保存される心配もありません)。お手元のデータに戻るときは、もう一度そのファイルを「開く」で読み込み直してください。</p>
+  <p>「設定」タブの「テストデータ」から、元のExcelファイルの実際の記載内容を参考にした4月分のサンプルデータを.jsonファイルとして書き出せます。現在編集中のデータには影響しません。書き出したファイルを「データを読み込む(復元)」で選ぶと、見るだけで入力例が入った状態の各タブの表示やExcel出力を試せます。すぐに試したいだけなら「サンプルデータをすぐに試す」ボタンで、ファイルを介さずその場で画面上のデータをサンプルに切り替えられます。この操作は開いていたファイル自体を一切変更・上書きしません(保存先が未設定の状態になるため、誤って元のファイルに保存される心配もありません)。お手元のデータに戻るときは、画面上部の「いつものファイルに戻る」を押してください。</p>
 
   <h4>特別支援学級の追加</h4>
   <p>「設定」タブの「特別支援学級を追加する」にチェックを入れると、予定入力タブと月間予定表(画面表示・Excel出力とも)の「給食」「登校日」「授業(①〜⑥)」の各欄に、4つ目の学級が追加されます。学級名は右の欄で自由に変更でき、既定は「5組」です(名前を変えるとすぐに見出しへ反映されます)。年間予定表(画面表示・Excel出力とも)の年計・学期計・月計には④として加わりますが、時数・集計タブの各種集計には反映されません(1〜3年のみの集計のままです)。チェックを外すと欄は非表示になりますが、入力済みのデータは消えずに残るので、後で再度チェックを入れれば復元されます。</p>
@@ -5629,12 +5584,10 @@ document.getElementById('helpBody').innerHTML = `
 
   <h4>ファイルの保存</h4>
   <ol>
-    <li>初めて使うときは「名前を付けて保存」で.jsonファイルの保存場所とファイル名を決めます。</li>
-    <li>以前のデータファイル(.dat)も「開く」でそのまま使えます(中身は同じ形式です)。.json にそろえたいときは、開いたあと「名前を付けて保存」で .json として保存し直してください。</li>
-    <li>既存のデータがある場合は「開く」で読み込みます。</li>
-    <li>Chrome / Edge では、以降の変更は自動的に同じファイルへ上書き保存されます(画面右上の表示で確認できます)。</li>
-    <li>それ以外のブラウザでは、変更のたびに「保存」ボタンでダウンロードし、次回は「開く」で読み込んでください。</li>
-    <li>Chrome / Edge では、次回アプリを開いたときに前回のファイルを自動的に読み込みます。ブラウザの許可が切れている場合だけ、画面上部に表示されるボタンを1回押してください。</li>
+    <li>はじめて使うときは、データのフォルダを選びます(上の「データのフォルダと年度ごとのファイル」)。フォルダが空なら「行事予定_○年度.json を作って始める」を押します。</li>
+    <li>以前のファイル(名前が違うもの・.dat)がフォルダにあるときは、一番新しいものが見るだけで開くので、「行事予定_○年度.json の名前で保存し直す」を押します。</li>
+    <li>編集中の変更は、自動的に同じファイルへ上書き保存されます(画面右上の表示で確認できます)。</li>
+    <li>「データを書き出す(バックアップ)」(設定タブ)で、今の内容をこのパソコンの「ダウンロード」にも保存できます。</li>
   </ol>
 
   <h4>実績(学級ごとの時間割・教科時数)</h4>
@@ -5651,10 +5604,6 @@ document.getElementById('helpBody').innerHTML = `
   <h4>印刷部数の記録</h4>
   <p>「設定」タブの「印刷部数の記録」では、行事予定などを印刷して配布した部数を、日付・区分(職員配布/生徒配布)・誰に(または対象学年など)・枚数・メモとして記録できます。一覧の「編集」でその内容を入力欄に呼び出して再保存、「削除」で記録を削除できます。職員配布・生徒配布それぞれの合計枚数が一覧の上部に表示されます。</p>
 
-  <h4>自動バックアップ</h4>
-  <p>「設定」タブの「自動バックアップ」から、.jsonファイルのバックアップを自動保存するフォルダを指定できます。一度選んだフォルダは次回以降も記憶されますが、ブラウザの仕様上、アプリを開くたびに「アクセスを許可」ボタンを1回押す必要があります(フォルダの選び直しは不要です)。バックアップの頻度は「保存のたびに毎回」「30分おきに1回」「1日に1回(初期設定)」から選べます。バックアップは元のファイルを上書きせず、日時付きの別ファイルとして保存されます。</p>
-
-
   <h4>アプリの不具合・様式変更をAIに依頼するときの書き方</h4>
   <pre>1. 対象ファイル: このアプリの index.html(添付/アップロード)
 2. 困っていること／変更したいこと(具体的に)
@@ -5663,7 +5612,7 @@ document.getElementById('helpBody').innerHTML = `
 5. 可能であれば、現在使っているデータファイル(.json)も一緒に渡すと確認しながら直せます</pre>
 
   <h4>データが壊れた場合の備え</h4>
-  <p>.json ファイルは定期的に別名でも保存しておくと安心です。Excel形式での自動バックアップ出力は今後の機能追加で対応予定です。</p>
+  <p>編集を始めるたびに(1日1つ)、データのフォルダの「バックアップ」フォルダにバックアップが取られます。戻すときは「データを読み込む(復元)」でバックアップを選び、「この内容に戻す」を押します。</p>
 `;
 //////////////////////// 編集ロックの解除・変更 ////////////////////////
 function applyLockUI(){
@@ -5678,8 +5627,11 @@ function applyLockUI(){
     badge.className = 'lock-badge locked';
     btn.textContent = '🔒 編集する';
   }
-  document.getElementById('btnSaveAs').disabled = !editUnlocked;
   document.getElementById('btnSave').disabled = !editUnlocked || !fileHandle;
+  // 見るだけで開いているとき・保存先(本体)がないときは編集を始められない(見本は保存しないので試せる)
+  const cannotEdit = !editUnlocked && (viewOnly || (!fileHandle && !sampleMode));
+  btn.disabled = cannotEdit;
+  btn.title = viewOnly ? '見るだけで開いているので編集できません' : (cannotEdit ? '先にデータのフォルダを開いてください' : '');
   const warnEl = document.getElementById('editLockWarning');
   if(!editUnlocked && isEditLockFresh(state.editLock)){
     const since = new Date(state.editLock.since);
@@ -6090,8 +6042,7 @@ document.getElementById('btnUnlock').addEventListener('click', ()=>{
     editUnlocked = false;
     applyLockUI();
     refreshAll();
-    // フォルダに新しい日付のファイルが置かれていたら切り替える(編集の終わりの自動保存が済んでから)
-    setTimeout(checkNewerInDataDir, 5000);
+    refreshDataDirUI();
   } else {
     openPasswordModal();
   }
@@ -6106,17 +6057,7 @@ document.getElementById('editLogClose').addEventListener('click', ()=> document.
 async function submitPasswordUnlock(){
   const editorName = document.getElementById('pwNameInput').value.trim();
   if(!editorName){ document.getElementById('pwError').style.display='block'; document.getElementById('pwNameInput').focus(); return; }
-  // データのフォルダを使っていて、もっと新しい日付のファイルがあれば、そちらに切り替えてから編集を始める
-  if(dataDirHandle && fileHandle && !sampleMode){
-    try{
-      const newest = await findNewestInDir(dataDirHandle);
-      if(newest && !(await fileHandle.isSameEntry(newest))){
-        alert(`フォルダに、新しい日付のファイル「${newest.name}」があります。そちらに切り替えてから編集を始めます。`);
-        await openHandleAsCurrentFile(newest);
-        setCurrentFileDisplay(`${newest.name}(フォルダ「${dataDirHandle.name}」の最新)`);
-      }
-    }catch(e){}
-  }
+  if(viewOnly){ closePasswordModal(); alert('見るだけで開いているファイルは編集できません。いつものファイルに戻すときは、画面上部の「この内容に戻す」を押してください。'); return; }
   {
     // 職場サーバー等で共有している場合、他の場所で編集中でないかをファイルから直接確認する
     // (このタブが最後に読み込んだ内容が古い可能性があるため、fileHandleから読み直す)。
@@ -6139,13 +6080,9 @@ async function submitPasswordUnlock(){
         }
       }catch(e){ /* 読み直しに失敗した場合は確認をスキップして続行する */ }
     }
-    if(state.meta && state.meta.supersededBy){
-      if(!confirm(`このファイルは古いファイルです(最新の内容は「${state.meta.supersededBy.name}」にあります)。
-
-ここに入力しても、ほかの先生が使っている最新のファイルには入りません。
-
-それでも、このファイルを編集しますか？`)) return;
-    }
+    // 編集を始める前の状態を、その日のうちに1つだけバックアップに取る(共通ルール)
+    try{ await ensureDailyBackup(); }
+    catch(e){ if(!confirm('バックアップを取れませんでした('+e.message+')。\nこのまま編集を始めますか？')) return; }
     editUnlocked = true;
     saveEditorName(editorName);
     const nowIso = new Date().toISOString();
@@ -6276,8 +6213,9 @@ document.querySelectorAll('input[name="icsAud"]').forEach(r=> r.addEventListener
 
 //////////////////////// ファイル操作ボタン ////////////////////////
 document.getElementById('btnOpen').addEventListener('click', doOpen);
-document.getElementById('btnOpenFolder').addEventListener('click', doOpenFolder);
-document.getElementById('btnSaveAs').addEventListener('click', doSaveAs);
+document.getElementById('btnChooseDataDir').addEventListener('click', chooseDataDir);
+document.getElementById('btnNewYearFile').addEventListener('click', createNewYearFile);
+document.getElementById('btnExportData').addEventListener('click', exportDataDownload);
 document.getElementById('btnSave').addEventListener('click', doSave);
 document.getElementById('btnExportTeacherXlsx').addEventListener('click', ()=> openMonthPickerModal('teacher'));
 document.getElementById('btnExportFamilyXlsx').addEventListener('click', ()=> openMonthPickerModal('family'));
@@ -6344,7 +6282,7 @@ function refreshAll(){
 }
 if(!supportsFSA){
   const b = document.getElementById('noFileBanner');
-  b.innerHTML = '<strong>お使いのブラウザについて</strong>このブラウザは自動上書き保存(File System Access API)に対応していないようです。Chrome または Edge のご利用を推奨します。それ以外のブラウザでは、変更のたびに「保存」ボタンでダウンロードし、次回起動時に「開く」で読み込んでください。';
+  b.innerHTML = '<strong>お使いのブラウザについて</strong>このブラウザでは、共有サーバーのデータのファイルを開いたり保存したりできません。Chrome または Edge で開いてください(見本データで試すことはできます)。';
   b.style.display='block'; b.className='banner';
 }
 populateMonthSelect();
@@ -6354,7 +6292,7 @@ applyColorSettings();
 renderAgenda();
 document.getElementById('appVersionTag').textContent = 'v'+APP_VERSION;
 updateFileVersionInfo();
-tryAutoLoadLastFile();
+startupOpenDataDir();
 
 document.getElementById('btnResetWidths').addEventListener('click', ()=>{
   if(!editUnlocked){ openPasswordModal(); return; }
@@ -6616,14 +6554,6 @@ document.getElementById('bafApply').addEventListener('click', ()=>{
 document.getElementById('bafPeriods').addEventListener('change', (e)=>{
   document.getElementById('bafPeriodsInputs').style.display = e.target.checked ? '' : 'none';
 });
-
-document.getElementById('btnChooseBackupFolder').addEventListener('click', chooseBackupFolder);
-document.getElementById('btnAllowBackupFolder').addEventListener('click', allowBackupFolder);
-document.getElementById('backupIntervalSelect').addEventListener('change', (e)=>{
-  if(!editUnlocked) return;
-  setBackupInterval(e.target.value);
-});
-setTimeout(()=>{ refreshBackupUI(); maybeRunBackup(); }, 800);
 
 window.addEventListener('beforeunload', (e)=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
 </script>
