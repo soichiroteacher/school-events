@@ -13,16 +13,19 @@ Claude(claude.aiおよびClaude Code)での対話を通じて開発してきた�
 
 **2026-09-27 の変更**: データファイルの拡張子を `.dat` から `.json` に変更(中身は以前と同じJSON。開くときは `.json` と `.dat` の両方を選べる。保存・新規作成・自動バックアップ・サンプル出力は `.json`)。保存時に改行と字下げを入れるようにした(`stateToText`。読み込みは以前の1行の形式もそのまま読める)。自動バックアップのファイル名は `行事予定_バックアップ_YYYY-MM-DD_HHMMSS.json`(共通ルールに合わせた。以前は `学校名_backup_YYYYMMDD_HHMMSS.dat`)。`サンプルデータ_1年分.dat` を `.json` に改名。README・CHANGELOG・CLAUDE.md・.gitignore を追加。
 
+**2026-11-21 の変更(2) データを .js に**: 本体・バックアップ・手動の書き出しを `.js`(`window.KOMU_DATA = window.KOMU_DATA || {};` / `window.KOMU_DATA["ファイル名"] =` / JSON)にした(`toDataJsText`・`parseDataText`。文字として読み、キー名に頼らない。以前の .json・.dat も読める)。見るだけの先生はフォルダを選ばず、起動時 `openViaScripts` が `<script src="行事予定_YYYY年度.js?t=時刻">` で来年度・今年度・前年度を試して一番新しい年度を開く(1分おきに読み直し)。編集する先生は「編集する」で `prepareFolderForEdit`(フォルダを選ぶ/許可を取り直す。`chooseDataDir` は index.html があるか確かめる)。**時間割アプリは `../school-events/行事予定_YYYY年度.js` を読む**(中身の形は以前の .json と同じ。前の年度の4月以降の日付も入っているので年度で絞る)。**未確認**: 実物の共有サーバーでの `<script src>` 読み込み・フォルダ選択。テストも途中(下の「次にやること」)。
+- 次にやること: 作りもののフォルダで .js の読み書き・バックアップの形・見るだけの起動を確かめる。TODO に項目を足す。
+
 **2026-11-21 の変更(データの置き方・共通ルール)**: `../CLAUDE.md` の「データファイルの置き方と自動バックアップ」に合わせて、ファイルの開き方を作り直した(コードは index.html の「データのフォルダと年度ごとのファイル」の節)。
-- データのフォルダを IndexedDB(`eventAppBackupDB` の `handles` に `dataDirHandle`)に覚える。起動時 `startupOpenDataDir` → `openFromDataDir`: 本体 `行事予定_YYYY年度.json`(`yearOfMainName`)の年度が一番新しいものを `openMainFile`。`mainYear` が開いている本体の年度(中身の `meta.fiscalYear` がずれていたら名前に合わせる。設定タブの年度は本体を開いている間は変えられない)。
-- 本体がない→ `findMigrationCandidate`(フォルダ直下の一番新しい .json/.dat。名前に「バックアップ」「backup」は除く。ここだけ更新日時で選ぶ)を見るだけで開き、「`行事予定_○年度.json` の名前で保存し直す」(=`restoreToMain`)。フォルダが空→「作って始める」(`startNewFile`)。
+- データのフォルダを IndexedDB(`eventAppBackupDB` の `handles` に `dataDirHandle`)に覚える。起動時 `startupOpenDataDir` → `openFromDataDir`: 本体 `行事予定_YYYY年度.js`(`yearOfMainName`)の年度が一番新しいものを `openMainFile`。`mainYear` が開いている本体の年度(中身の `meta.fiscalYear` がずれていたら名前に合わせる。設定タブの年度は本体を開いている間は変えられない)。
+- 本体がない→ `findMigrationCandidate`(フォルダ直下の一番新しい .json/.dat。名前に「バックアップ」「backup」は除く。ここだけ更新日時で選ぶ)を見るだけで開き、「`行事予定_○年度.js` の名前で保存し直す」(=`restoreToMain`)。フォルダが空→「作って始める」(`startNewFile`)。
 - 今の年度(`currentFiscalYear`、4月始まり)の本体がない→帯で「○年度のファイルを作る」(`createNewYearFile`)。もっと新しい年度の本体がある(ほかのPCで作られた)→帯で「開く」(1分おきの `checkNewerYearFile` でも確かめる)。
 - **新しい年度のファイルに引き継ぐもの**: もとの本体のすべて(設定・候補・列幅・色・必要時数・学級数・基本時間割など)。ただし日付のデータ(`days`・`manualDayFlags`・`holidayOverrides`・`mealCountOverrides`・`actuals`)は前の年度の4月より前を消す(前の年度の分は「前年度の行事を候補に追加」で使うので残す)。`printCounts` は新しい年度の分だけ、`eventHourEntries`・版の表示・`editLog` は空にする。作る前にもとの本体のバックアップを取る。
-- バックアップ: `writeBackupOf`(本体のファイルにある内容をそのまま `バックアップ/行事予定_YYYY年度_バックアップ_YYYY-MM-DD_HHMM.json` へ。同じ分に2つ目は `_2`)。`ensureDailyBackup` は編集開始時(`submitPasswordUnlock`)に、`バックアップ` フォルダにその日の名前があるかで決める(1日1つ)。件数は `countBackups` で設定タブに出す。アプリでは消さない。
+- バックアップ: `writeBackupOf`(本体のファイルにある内容をそのまま `バックアップ/行事予定_YYYY年度_バックアップ_YYYY-MM-DD_HHMM.js` へ。同じ分に2つ目は `_2`)。`ensureDailyBackup` は編集開始時(`submitPasswordUnlock`)に、`バックアップ` フォルダにその日の名前があるかで決める(1日1つ)。件数は `countBackups` で設定タブに出す。アプリでは消さない。
 - 手で開いたファイル(`doOpen`=「データを読み込む(復元)」)は `openViewOnly`: `viewOnly=true`・`fileHandle=null`(保存しない)・「編集する」は押せない。帯の「この内容に戻す」(`restoreToMain`)は中身の `meta.fiscalYear` の本体へ、先にバックアップを取ってから書き込む(本体が編集中なら確認)。本体そのものを選んだときは見るだけにせず普通に開く。
 - 消したもの: 11/19 の「フォルダから開く」(名前の日付で選ぶ `dateKeyFromName` など)・「古いファイルの印」(`meta.supersededBy`。`normalizeState` で消す)、「名前を付けて保存」、設定の「自動バックアップ」(別フォルダ・頻度を選ぶ方式。localStorage の `eventapp_backup_*` は使わなくなった)、前回のファイルを開く `tryAutoLoadLastFile`(`lastFileHandle` はダイアログの初期位置にだけ使う)。
 - 「データを書き出す(バックアップ)」(設定タブ)は「ダウンロード」へ `行事予定_YYYY年度_書き出し_日付.json`。
-- **時間割アプリ(`../timetable`)への影響**: 行事予定のデータのファイル名が `行事予定_YYYY年度.json`(年度ごと)に変わる。時間割アプリは、行事予定のデータのフォルダの、この名前で年度が一番新しいファイルを読むこと(共通ルール)。中身の形は変えていない。前の年度の4月以降の日付のデータも入っている点に注意(年度で絞って読む)。
+- **時間割アプリ(`../timetable`)への影響**: 行事予定のデータのファイル名が `行事予定_YYYY年度.js`(年度ごと)に変わる。時間割アプリは、行事予定のデータのフォルダの、この名前で年度が一番新しいファイルを読むこと(共通ルール)。中身の形は変えていない。前の年度の4月以降の日付のデータも入っている点に注意(年度で絞って読む)。
 - **未確認**: 作りもののフォルダ(偽のハンドル)でしか確かめていない。実物の共有サーバーで、フォルダを選ぶ画面・起動時の許可のボタン・`バックアップ` フォルダの作成・ほかのPCでの帯の出方を確かめること。
 
 **2026-11-19 の変更(2)「フォルダから開く」(2026-11-21 に廃止)**: エクスプローラーでコピーして新しい日付の名前にした場合にも対応するため、データのフォルダ(ディレクトリのハンドル)を IndexedDB の `dataDirHandle` に覚え、その中で **名前の日付が一番新しい** `.json`/`.dat` を開く(ユーザーと合意。更新日時はコピーで変わらないので使わない)。`dateKeyFromName`(2026-11-19 / 20261119 / 2026年11月19日、後ろの時刻も見る)、`findNewestInDir`(「バックアップ」「backup」と日付なしは除く。同じ日付なら更新日時)、`openNewestFromDataDir`、`doOpenFolder`(ヘッダーの `#btnOpenFolder`)、起動時 `tryAutoLoadFromDataDir`(`tryAutoLoadLastFile` の先に呼ぶ)、1分おき・画面に戻ったとき `checkNewerInDataDir`(閲覧中は切り替え、編集中は `#newerFileBanner`。編集を終えて5秒後にも確認)、編集開始時も新しいほうへ切り替える。「開く」でファイルを選ぶと `forgetDataDir`(わざと選んだファイルが勝手に替わらないように)。「名前を付けて保存」はフォルダ使用中なら今日の日付の名前とそのフォルダを勧める。テストは作りもののフォルダで確認(実物のフォルダ選択・共有サーバーは未確認)。

@@ -681,7 +681,7 @@
     <div class="panel">
       <h2>データのフォルダとバックアップ</h2>
       <p style="font-size:12.5px;color:var(--ink-soft);margin-top:0;">
-        データは、校務共有サーバーのフォルダに、年度ごとに「行事予定_2026年度.json」のような名前で置きます。
+        データは、校務共有サーバーのフォルダに、年度ごとに「行事予定_2026年度.js」のような名前で置きます。
         アプリはこのフォルダを覚えていて(パソコンごとに最初に1回選びます)、開くと名前の年度が一番新しいファイルを開きます。
       </p>
       <div class="field-row">
@@ -695,7 +695,7 @@
       <p style="font-size:12.5px;color:var(--ink-soft);margin:10px 0 4px;">
         <strong>バックアップ:</strong> <span id="backupCountStatus">-</span><br>
         編集を始めるとき、その日のバックアップがまだなければ、データのフォルダの中の「バックアップ」フォルダに1つ取ります
-        (名前は「行事予定_2026年度_バックアップ_2026-11-21_0830.json」。編集を始める前の内容です)。
+        (名前は「行事予定_2026年度_バックアップ_2026-11-21_0830.js」。編集を始める前の内容です)。
         元に戻す前・新しい年度のファイルを作る前にも取ります。アプリでは消さないので、多くなったらエクスプローラーで古いものを消してください。
       </p>
       <div class="field-row">
@@ -954,14 +954,14 @@
    ・Excelのようなグリッドに直接入力(モーダルなし)
    ・複数セルのドラッグ選択 → コピー(Ctrl+C) / 貼り付け(Ctrl+V) / 一括削除(Delete)
    ・祝日/振替休日を年度から自動計算(先頭列で個別に上書き可)
-   ・File System Access API でローカルの .json(以前は .dat。中身は同じJSON)に保存/自動保存
+   ・File System Access API で共有サーバーの 行事予定_YYYY年度.js(中身はJSON。以前は .json/.dat)に保存/自動保存
    ============================================================ */
 
 // アプリのバージョン表示用。日付+時刻の形式(YYYY-MM-DD HH:MM)で、機能追加・修正のたびに更新する。
 // 同じ日に複数回更新した場合に見分けがつくよう、時刻まで含める。
 // 画面右上のバッジに表示するほか、保存時にデータファイルのmetaにも書き込まれるため、
 // 「このファイルはいつの時点のアプリで保存されたか」も後から確認できる。
-const APP_VERSION = '2026-11-21 12:00';
+const APP_VERSION = '2026-11-21 16:00';
 
 const DOW = ['日','月','火','水','木','金','土'];
 
@@ -1494,6 +1494,30 @@ function scheduleAutosave(){
 // データファイルの中身(JSON)。他のソフト(メモ帳など)で開いても読めるよう、改行と字下げを入れる(2026-09-27 から)。
 // 読み込み側(JSON.parse)は改行の有無に関係なく読めるので、以前の1行の形式もそのまま開ける。
 function stateToText(obj){ return JSON.stringify(obj, null, 2); }
+// 共有サーバーのデータのファイルは、中身を JSON のまま先頭に2行を付けた .js にする(共通ルール 2026-11-21)。
+// <script src> で読めるので、見るだけの先生はフォルダを選ばずに開ける。キーはファイル名(拡張子なし)。
+//   window.KOMU_DATA = window.KOMU_DATA || {};
+//   window.KOMU_DATA["行事予定_2026年度"] =
+//   { …JSON… };
+function dataKeyOf(filename){ return String(filename).replace(/\.(js|json|dat)$/i, ''); }
+function toDataJsText(obj, filename){
+  return 'window.KOMU_DATA = window.KOMU_DATA || {};\n'
+    + `window.KOMU_DATA[${JSON.stringify(dataKeyOf(filename))}] =\n`
+    + JSON.stringify(obj, null, 2) + ';\n';
+}
+// 文字として読む(プログラムとして動かさない)。.js なら2行目の「=」の後ろから最後の「}」まで、
+// 以前の .json・.dat ならそのまま JSON。キーの名前には頼らない(バックアップを本体の名前にコピーしても読めるように)。
+function parseDataText(text){
+  const t = String(text).replace(/^\uFEFF/, '');
+  if(/^\s*window\.KOMU_DATA/.test(t)){
+    const m = /window\.KOMU_DATA\s*\[[^\]]*\]\s*=/.exec(t);
+    if(!m) throw new Error('データのファイルの形が正しくありません');
+    const start = m.index + m[0].length;
+    const end = t.lastIndexOf('}');
+    return JSON.parse(t.slice(start, end+1));
+  }
+  return JSON.parse(t);
+}
 
 async function writeToHandle(handle){
   // 開いたあとに、ほかのパソコンでこのファイルが保存されていないか確かめる。
@@ -1514,7 +1538,7 @@ async function writeToHandle(handle){
   stampSaveMeta();
   if(myEditLogEntry && !sampleMode) myEditLogEntry.end = new Date().toISOString();
   const writable = await handle.createWritable();
-  await writable.write(stateToText(state));
+  await writable.write(toDataJsText(state, handle.name));
   await writable.close();
   if(handle===fileHandle){ try{ lastKnownModified = (await handle.getFile()).lastModified; }catch(e){} }
   markSaved();
@@ -2087,8 +2111,8 @@ function loadSampleDataInMemory(){
   dirty = false;
   setStatus('サンプルデータ(未保存・保存先は未設定です)', 'dirty');
   setCurrentFileDisplay('(サンプルデータ・保存されません)');
-  setFileBanner(`見本データで試しています(保存されません)。${dataDirHandle ? ' <button id="fbBackFromSample">いつものファイルに戻る</button>' : ''}`, 'info');
-  onBannerClick('fbBackFromSample', async ()=>{ if(editUnlocked){ editUnlocked = false; } setFileBanner(''); await openFromDataDir(dataDirHandle, true); });
+  setFileBanner('見本データで試しています(保存されません)。 <button id="fbBackFromSample">いつものファイルに戻る</button>', 'info');
+  onBannerClick('fbBackFromSample', ()=>{ editUnlocked = false; backToMain(); });
   updateFileVersionInfo();
   applyLockUI();
   applyColorSettings();
@@ -2132,12 +2156,12 @@ async function idbGet(key){
 
 // 「データを書き出す(バックアップ)」: 今の内容を、このパソコンの「ダウンロード」に保存する(共通ルールの書き出し)
 function exportDataDownload(){
-  const t = new Date();
   const fy = mainYear || state.meta.fiscalYear;
-  const blob = new Blob([stateToText(state)], {type:'application/json'});
+  const name = backupFileName(fy, new Date());
+  const blob = new Blob([toDataJsText(state, name)], {type:'text/javascript'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `${APP_FILE_PREFIX}_${fy}年度_書き出し_${ymdStr(t)}.json`;
+  a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
@@ -2150,7 +2174,7 @@ async function doOpen(){
     const startIn = dataDirHandle || await getStartInHandle();
     const [handle] = await window.showOpenFilePicker({
       // 以前のデータファイル(.dat。中身は同じJSON)も開けるようにしておく
-      types:[{ description:'行事予定データ', accept:{'application/json':['.json','.dat']} }],
+      types:[{ description:'行事予定データ', accept:{'text/javascript':['.js'], 'application/json':['.json','.dat']} }],
       ...(startIn ? {startIn} : {})
     });
     // データのフォルダの本体そのものを選んだときは、いつもどおり開く(見るだけにしない)
@@ -2166,7 +2190,7 @@ async function doOpen(){
 }
 function loadStateFromText(text){
   try{
-    const obj = JSON.parse(text);
+    const obj = (typeof text === 'string') ? parseDataText(text) : text; // <script src> で読んだときは中身(オブジェクト)が来る
     if(!obj.meta || !obj.days) throw new Error('形式が正しくありません');
     Object.keys(obj.days).forEach(k=>{ obj.days[k] = migrateDayRecord(obj.days[k]); });
     normalizeState(obj);
@@ -2189,25 +2213,26 @@ function loadStateFromText(text){
 //////////////////////// データのフォルダと年度ごとのファイル(共通ルール 2026-11-21) ////////////////////////
 // ふだんは何もしなくても、起動すると毎回同じ(今の年度の)ファイルが開くようにするため、次のように決めた(apps/CLAUDE.md)。
 // - データのフォルダを最初に一度選んでもらい、IndexedDB(dataDirHandle)に覚える(パソコン・ブラウザごと)。
-// - 本体の名前は「行事予定_YYYY年度.json」。起動したら、名前の年度が一番新しい本体を開く(更新日時は使わない)。
+// - 本体の名前は「行事予定_YYYY年度.js」。起動したら、名前の年度が一番新しい本体を開く(更新日時は使わない)。
 // - 今の年度の本体がなければ、前の年度を開き「○年度のファイルを作る」を出す。作るのはボタンを押したときだけ。
 // - 編集を始めるとき、その日のバックアップがなければ「バックアップ」フォルダに1つ取る。復元の前・新年度を作る前にも取る。
 // - 手で開いたファイル(バックアップ・前の年度・ほかの名前)は見るだけ。「この内容に戻す」で本体へ書き込む。
-// - 決まった名前の本体がなければ、フォルダの一番新しい .json を見るだけで開き、決まった名前で保存し直すよう案内する(移し替え)。
+// - 決まった名前の本体がなければ、フォルダの一番新しい .json・.dat(以前の形)を見るだけで開き、決まった名前で保存し直すよう案内する(移し替え)。
 // 以前(11/19)の「名前の日付が一番新しいファイルを開く」と「古いファイルの印(supersededBy)」は、これに置き換えて消した。
-// ※ 時間割アプリ(../timetable)もこのフォルダの、年度が一番新しい「行事予定_YYYY年度.json」を読む。
+// ※ 時間割アプリ(../timetable)もこのフォルダの、年度が一番新しい「行事予定_YYYY年度.js」を読む。
 const APP_FILE_PREFIX = '行事予定';
 const BACKUP_SUBDIR = 'バックアップ';
 let dataDirHandle = null;  // データのフォルダ
 let viewOnly = false;      // 手で開いたファイルを見るだけで開いているとき true(編集・保存しない)
 let viewOnlyName = '';
 let mainYear = null;       // 開いている本体の年度(ファイル名の年度)
-function mainFileName(fy){ return `${APP_FILE_PREFIX}_${fy}年度.json`; }
+function mainFileName(fy){ return `${APP_FILE_PREFIX}_${fy}年度.js`; }
+function backupFileName(fy, t){ return `${APP_FILE_PREFIX}_${fy}年度_バックアップ_${ymdStr(t)}_${pad2(t.getHours())}${pad2(t.getMinutes())}.js`; }
 function currentFiscalYear(){ const n=new Date(); return n.getMonth()>=3 ? n.getFullYear() : n.getFullYear()-1; }
-function yearOfMainName(name){ const m = name.match(/^行事予定_(\d{4})年度\.json$/); return m ? +m[1] : null; }
+function yearOfMainName(name){ const m = name.match(/^行事予定_(\d{4})年度\.js$/); return m ? +m[1] : null; }
 function ymdStr(t){ return `${t.getFullYear()}-${pad2(t.getMonth()+1)}-${pad2(t.getDate())}`; }
 function isBackupName(name){ return /バックアップ|backup/i.test(name); }
-// フォルダの中の本体(行事予定_YYYY年度.json)を、年度の新しい順に
+// フォルダの中の本体(行事予定_YYYY年度.js)を、年度の新しい順に
 async function listMainFiles(dir){
   const out = [];
   for await (const e of dir.values()){
@@ -2217,11 +2242,11 @@ async function listMainFiles(dir){
   }
   return out.sort((a,b)=> b.year - a.year);
 }
-// 移し替え用: 決まった名前の本体がないとき、フォルダの一番新しい .json(バックアップは除く)
+// 移し替え用: 決まった名前の本体がないとき、フォルダの一番新しい .json・.dat(バックアップは除く)
 async function findMigrationCandidate(dir){
   let best = null, bestMod = -1;
   for await (const e of dir.values()){
-    if(e.kind !== 'file' || !/\.(json|dat)$/i.test(e.name) || isBackupName(e.name)) continue;
+    if(e.kind !== 'file' || !/\.(json|dat)$/i.test(e.name) || isBackupName(e.name)) continue; // 以前の形(.json・.dat)
     let mod = 0; try{ mod = (await e.getFile()).lastModified; }catch(err){}
     if(mod > bestMod){ best = e; bestMod = mod; }
   }
@@ -2248,18 +2273,19 @@ async function ensureDirPermission(dir, ask){
 async function getBackupDir(create){ return dataDirHandle.getDirectoryHandle(BACKUP_SUBDIR, {create}); }
 // 本体のファイルにある内容を、そのまま「バックアップ」フォルダへ写す
 async function writeBackupOf(handle, year){
-  const text = await (await handle.getFile()).text();
+  const obj = parseDataText(await (await handle.getFile()).text());
   const t = new Date();
-  const base = `${APP_FILE_PREFIX}_${year}年度_バックアップ_${ymdStr(t)}_${pad2(t.getHours())}${pad2(t.getMinutes())}`;
+  const base = backupFileName(year, t).replace(/\.js$/, '');
   const dir = await getBackupDir(true);
   // 同じ分に2つ取るとき(戻す前と新年度の前など)は、前のバックアップを消さないよう _2, _3 を付ける
-  let name = base + '.json';
+  let name = base + '.js';
   for(let i=2; i<100; i++){
     try{ await dir.getFileHandle(name); }catch(e){ break; }
-    name = `${base}_${i}.json`;
+    name = `${base}_${i}.js`;
   }
   const fh = await dir.getFileHandle(name, {create:true});
-  const w = await fh.createWritable(); await w.write(text); await w.close();
+  // 中身は本体と同じ形(キーだけバックアップのファイル名)
+  const w = await fh.createWritable(); await w.write(toDataJsText(obj, name)); await w.close();
   return name;
 }
 // 編集を始めるとき: その本体のその日のバックアップがまだなければ1つ取る。
@@ -2275,14 +2301,14 @@ async function countBackups(){
   if(!dataDirHandle) return null;
   let dir; try{ dir = await getBackupDir(false); }catch(e){ return 0; }
   let n = 0;
-  for await (const e of dir.values()){ if(e.kind==='file' && e.name.startsWith(APP_FILE_PREFIX+'_') && e.name.includes('_バックアップ_')) n++; }
+  for await (const e of dir.values()){ if(e.kind==='file' && e.name.startsWith(APP_FILE_PREFIX+'_') && e.name.includes('_バックアップ_') && /\.(js|json)$/i.test(e.name)) n++; }
   return n;
 }
 
 // ---- 開く ----
 async function openMainFile(handle, year){
   await openHandleAsCurrentFile(handle);
-  viewOnly = false; viewOnlyName = ''; mainYear = year;
+  viewOnly = false; viewOnlyName = ''; mainYear = year; scriptYear = null;
   // 年度はファイル名で決まる(中身の年度がずれていたら名前に合わせる。保存すると中身も直る)
   if(state.meta.fiscalYear !== year){ state.meta.fiscalYear = year; populateMonthSelect(); refreshAll(); }
   setCurrentFileDisplay(handle.name);
@@ -2302,13 +2328,19 @@ async function openViewOnly(handle, mode){
   if(mode === 'migrate'){
     setFileBanner(`このフォルダには、決まった名前のデータのファイル「${escapeHtml(target)}」がまだありません。いちばん新しい「${escapeHtml(handle.name)}」を<strong style="display:inline">見るだけ</strong>で開いています${atText}。<br>内容を確かめて、<button id="fbRestore">「${escapeHtml(target)}」の名前で保存し直す</button> を押してください。次からは、そのファイルが自動で開きます。`, 'warn');
   } else {
-    setFileBanner(`見るだけで開いています:「${escapeHtml(handle.name)}」${atText}。編集はできません。 <button id="fbRestore">この内容に戻す</button>${dataDirHandle ? ' <button id="fbBack">いつものファイルに戻る</button>' : ''}`, 'warn');
+    setFileBanner(`見るだけで開いています:「${escapeHtml(handle.name)}」${atText}。編集はできません。 <button id="fbRestore">この内容に戻す</button> <button id="fbBack">いつものファイルに戻る</button>`, 'warn');
   }
   onBannerClick('fbRestore', restoreToMain);
-  onBannerClick('fbBack', ()=> openFromDataDir(dataDirHandle, true));
+  onBannerClick('fbBack', backToMain);
   setStatus(`「${handle.name}」を見るだけで開きました`, 'saved');
 }
 // データのフォルダから、年度が一番新しい本体を開く(なければ移し替えの案内・新しく始める案内)
+// 「いつものファイルに戻る」: フォルダの許可があればフォルダから、なければ <script src> で
+async function backToMain(){
+  setFileBanner('');
+  if(dataDirHandle){ try{ if(await openFromDataDir(dataDirHandle, true)) return; }catch(e){} }
+  if(!await openViaScripts(false)) alert('いつものファイル(行事予定_○年度.js)を開けませんでした。ページを開き直してください。');
+}
 async function openFromDataDir(dir, ask){
   if(!await ensureDirPermission(dir, ask)) return false;
   dataDirHandle = dir;
@@ -2330,7 +2362,7 @@ async function startNewFile(fy){
   try{
     const obj = emptyState(); obj.meta.fiscalYear = fy;
     const h = await dataDirHandle.getFileHandle(mainFileName(fy), {create:true});
-    const w = await h.createWritable(); await w.write(stateToText(obj)); await w.close();
+    const w = await h.createWritable(); await w.write(toDataJsText(obj, h.name)); await w.close();
     setFileBanner('');
     await openMainFile(h, fy);
   }catch(e){ alert('ファイルを作れませんでした: '+e.message+'\n\nデータのフォルダに書き込めるか(共有サーバーにつながっているか)確かめてください。'); }
@@ -2366,7 +2398,7 @@ async function restoreToMain(){
   try{ target = await dataDirHandle.getFileHandle(name); }catch(e){}
   try{
     if(target){
-      const cur = JSON.parse(await (await target.getFile()).text());
+      const cur = parseDataText(await (await target.getFile()).text());
       if(isEditLockFresh(cur.editLock) && !confirm(`⚠ いま${cur.editLock.by ? cur.editLock.by+'先生が' : 'ほかの場所で'}「${name}」を編集中です。\n戻すと、その先生の入力が消えるおそれがあります。それでも続けますか？`)) return;
     }
   }catch(e){}
@@ -2381,7 +2413,7 @@ async function restoreToMain(){
     obj.editLock = { active:false, since:null, by:'', session:'' };
     if(!obj.meta) obj.meta = {};
     obj.meta.savedAppVersion = APP_VERSION; obj.meta.savedAt = new Date().toISOString();
-    const w = await target.createWritable(); await w.write(stateToText(obj)); await w.close();
+    const w = await target.createWritable(); await w.write(toDataJsText(obj, target.name)); await w.close();
     setFileBanner('');
     await openMainFile(target, fy);
     setStatus(`「${name}」を、この内容に戻しました`, 'saved');
@@ -2395,13 +2427,13 @@ async function createNewYearFile(){
   if(!await ensureDirPermission(dataDirHandle, true)) return;
   const mains = await listMainFiles(dataDirHandle);
   const base = mains[0];
-  if(!base){ alert('もとにする年度のファイル(行事予定_YYYY年度.json)がフォルダにありません。'); return; }
+  if(!base){ alert('もとにする年度のファイル(行事予定_YYYY年度.js)がフォルダにありません。'); return; }
   const ny = base.year + 1;
   const name = mainFileName(ny);
   if(!confirm(`「${name}」を作ります。\n\n「${base.handle.name}」から、設定・候補・${base.year}年度の予定を引き継ぎます(${base.year}年度の予定は、前の年度の行事を候補に入れるときなどに使います)。編集の記録は引き継ぎません。\n\n作る前に「${base.handle.name}」のバックアップを取ります。よろしいですか？`)) return;
   try{
     await writeBackupOf(base.handle, base.year);
-    const obj = JSON.parse(await (await base.handle.getFile()).text());
+    const obj = parseDataText(await (await base.handle.getFile()).text());
     normalizeState(obj);
     const keepFrom = `${base.year}-04-01`; // 前の年度(base.year)の4月より前のものは引き継がない
     ['days','manualDayFlags','holidayOverrides','mealCountOverrides','actuals'].forEach(k=>{
@@ -2415,7 +2447,7 @@ async function createNewYearFile(){
     obj.editLog = [];
     obj.editLock = { active:false, since:null, by:'', session:'' };
     const h = await dataDirHandle.getFileHandle(name, {create:true});
-    const w = await h.createWritable(); await w.write(stateToText(obj)); await w.close();
+    const w = await h.createWritable(); await w.write(toDataJsText(obj, h.name)); await w.close();
     await openMainFile(h, ny);
     alert(`「${name}」を作って開きました。次からは、このファイルが自動で開きます。`);
   }catch(e){ alert('作れませんでした: '+e.message+'\n\nデータのフォルダに書き込めるか(共有サーバーにつながっているか)確かめてください。'); }
@@ -2427,36 +2459,91 @@ async function chooseDataDir(){
   try{
     const startIn = dataDirHandle || await getStartInHandle();
     const dir = await window.showDirectoryPicker({ mode:'readwrite', ...(startIn ? {startIn} : {}) });
+    // データのフォルダ = アプリ(index.html)のフォルダ。違うフォルダを選んだら知らせる
+    let hasApp = false;
+    try{ await dir.getFileHandle('index.html'); hasApp = true; }catch(e){}
+    if(!hasApp){ alert(`選んだフォルダ「${dir.name}」には、このアプリ(index.html)がありません。\n\nアプリ(index.html)とデータのファイル(行事予定_○年度.js)が入っている、アプリと同じフォルダを選んでください。`); return false; }
     dataDirHandle = dir;
     try{ await idbSet('dataDirHandle', dir); }catch(e){}
     await openFromDataDir(dir, true);
     refreshDataDirUI();
+    return true;
   }catch(e){ if(e.name!=='AbortError') alert('フォルダを選べませんでした: '+e.message); }
+}
+// <script src> で本体を読む(見るだけの先生用。フォルダを選ばなくても読める)。
+// フォルダの中の一覧はブラウザから見られないので、来年度・今年度・前年度の名前を順に試し、読めた中で一番新しい年度を使う。
+// 前の中身がブラウザに残らないよう ?t=時刻 を付ける。キーの名前には頼らず、読む前になかったキーを探す。
+function loadDataScript(filename){
+  return new Promise(resolve=>{
+    const before = new Set(Object.keys(window.KOMU_DATA || {}));
+    const el = document.createElement('script');
+    el.src = encodeURI(filename) + '?t=' + Date.now();
+    const done = (obj)=>{ el.remove(); resolve(obj); };
+    el.onload = ()=>{
+      const all = window.KOMU_DATA || {};
+      let key = Object.keys(all).find(k=> !before.has(k));
+      if(!key && all[dataKeyOf(filename)]) key = dataKeyOf(filename); // 2回目以降(同じキーを読み直したとき)
+      const obj = key ? all[key] : null;
+      if(key) delete all[key]; // 次に読み直したときも「新しく入ったキー」で見つけられるように
+      done(obj);
+    };
+    el.onerror = ()=> done(null);
+    document.head.appendChild(el);
+  });
+}
+let scriptYear = null; // <script src> で読んだ本体の年度(フォルダを開いていないとき)
+async function openViaScripts(quiet){
+  const cfy = currentFiscalYear();
+  for(const y of [cfy+1, cfy, cfy-1]){
+    const obj = await loadDataScript(mainFileName(y));
+    if(obj && obj.meta && obj.days){
+      const savedBefore = state && state.meta && state.meta.savedAt;
+      if(quiet && scriptYear === y && savedBefore && obj.meta.savedAt === savedBefore) return true; // 変わっていない
+      loadStateFromText(JSON.parse(JSON.stringify(obj)));
+      fileHandle = null; viewOnly = false; mainYear = null; scriptYear = y;
+      if(state.meta.fiscalYear !== y){ state.meta.fiscalYear = y; populateMonthSelect(); refreshAll(); }
+      setCurrentFileDisplay(mainFileName(y));
+      applyLockUI();
+      if(!quiet) afterOpenFile(mainFileName(y));
+      else setStatus('ほかの場所で保存された、最新の内容を読み込みました', 'saved');
+      if(y < cfy){
+        setFileBanner(`今の年度(${cfy}年度)のファイルがまだありません。いまは「${escapeHtml(mainFileName(y))}」を開いています。(作るのは、編集する先生が設定タブの「${cfy}年度のファイルを作る」で行います)`, 'info');
+      } else setFileBanner('');
+      return true;
+    }
+  }
+  return false;
 }
 // 起動したとき
 async function startupOpenDataDir(){
-  if(!supportsFSA) return;
+  // 1) 編集する先生で、フォルダの許可が残っていれば、フォルダから開く
   let dir = null;
   try{ dir = await idbGet('dataDirHandle'); }catch(e){}
-  if(!dir){
-    setFileBanner('はじめに、データのファイルを置くフォルダ(校務共有サーバーの「行事予定」のフォルダなど)を選んでください。パソコンごとに最初の1回だけです。 <button id="fbChooseDir">データのフォルダを選ぶ</button>', 'info');
-    onBannerClick('fbChooseDir', chooseDataDir);
-    return;
+  if(dir && supportsFSA){
+    dataDirHandle = dir;
+    try{ if(await openFromDataDir(dir, false)) return; }catch(e){}
   }
-  dataDirHandle = dir;
-  try{
-    if(await openFromDataDir(dir, false)) return;
-  }catch(e){
-    setFileBanner(`データのフォルダ「${escapeHtml(dir.name)}」を開けませんでした(共有サーバーにつながっていない、フォルダの名前や場所が変わった、など)。 <button id="fbChooseDir">データのフォルダを選び直す</button>`, 'warn');
-    onBannerClick('fbChooseDir', chooseDataDir);
-    return;
+  // 2) フォルダを選ばずに <script src> で読む(ふだんはこれ)
+  if(await openViaScripts(false)) return;
+  // 3) 読めなかった: まだ行事予定_○年度.js がない(移し替え前)、またはアプリとデータが別の場所にある
+  setFileBanner(`データのファイル(行事予定_○年度.js)が、アプリと同じフォルダに見つかりませんでした。編集する先生は「データのフォルダを選ぶ」で、アプリ(index.html)のあるフォルダを選んでください(以前のファイルからの移し替えもここから行います)。 <button id="fbChooseDir">データのフォルダを選ぶ</button>`, 'info');
+  onBannerClick('fbChooseDir', chooseDataDir);
+}
+// 「編集する」を押したとき: 編集にはフォルダの書き込みの許可が要る。
+// 選んだことがなければ選んでもらい、許可が切れていれば取り直す(ボタンを押したときでないと許可の画面は出せない)
+async function prepareFolderForEdit(){
+  if(sampleMode || fileHandle) return true;
+  if(viewOnly) return false;
+  if(!supportsFSA){ alert('このブラウザでは編集できません。Chrome または Edge で開いてください。'); return false; }
+  if(!dataDirHandle){ try{ dataDirHandle = await idbGet('dataDirHandle'); }catch(e){} }
+  if(dataDirHandle){
+    try{ if(await openFromDataDir(dataDirHandle, true) && fileHandle) return true; }catch(e){}
+    if(fileHandle) return true;
+    if(viewOnly) return false; // 移し替えの案内を出した
   }
-  // 許可がまだ: ブラウザの決まりで、ボタンを押さないと許可の画面を出せない
-  setFileBanner(`データのフォルダ「${escapeHtml(dir.name)}」を開くには、下のボタンを押してください(ブラウザの決まりで、起動のたびに1回だけ許可が必要です)。 <button id="fbAllowDir">データを開く</button>`, 'info');
-  onBannerClick('fbAllowDir', async ()=>{
-    try{ if(!await openFromDataDir(dir, true)) return; refreshDataDirUI(); }
-    catch(e){ alert('開けませんでした: '+e.message+'\n\n設定タブの「データのフォルダを選ぶ」で、選び直してください。'); }
-  });
+  if(!confirm('編集するには、最初に一度だけ、データのフォルダ(このアプリ index.html があるフォルダ)を選んでもらいます。\n\n「OK」を押すと、フォルダを選ぶ画面が開きます。')) return false;
+  await chooseDataDir();
+  return !!fileHandle;
 }
 // 設定タブの表示
 async function refreshDataDirUI(){
@@ -2471,8 +2558,10 @@ async function refreshDataDirUI(){
   btn.textContent = next ? `${next}年度のファイルを作る` : '新しい年度のファイルを作る';
   btn.disabled = !next || sampleMode || editUnlocked;
 }
-// 開いている間に、ほかのパソコンで新しい年度のファイルが作られたら知らせる
+// 開いている間に、ほかのパソコンで新しい年度のファイルが作られたら知らせる。
+// フォルダを開いていない(見るだけの)ときは、<script src> で読み直す
 async function checkNewerYearFile(){
+  if(!fileHandle && !viewOnly && !sampleMode && !editUnlocked && scriptYear){ try{ await openViaScripts(true); }catch(e){} return; }
   if(!dataDirHandle || sampleMode || viewOnly || !mainYear) return;
   try{ if(await dataDirHandle.queryPermission({mode:'readwrite'}) !== 'granted') return; }catch(e){ return; }
   await updateYearBanner();
@@ -4981,7 +5070,7 @@ function renderSettingsTab(){
     const el = document.getElementById(id);
     if(el) el.disabled = !editUnlocked;
   });
-  // 年度はファイル名(行事予定_YYYY年度.json)で決まるので、本体を開いているときは変えられない。新しい年度はファイルを作る
+  // 年度はファイル名(行事予定_YYYY年度.js)で決まるので、本体を開いているときは変えられない。新しい年度はファイルを作る
   if(mainYear && !sampleMode) document.getElementById('setFiscalYear').disabled = true;
 }
 function renderPrintCountList(){
@@ -5400,7 +5489,8 @@ document.getElementById('btnHolidayOvrSave').addEventListener('click', ()=>{
 document.getElementById('helpBody').innerHTML = `
   <h4>更新履歴</h4>
   <ul class="changelog">
-    <li><strong>2026-11-21</strong>: データのファイルの置き方を変えました。データのフォルダを一度選ぶと、アプリを開くたびに、そのフォルダの「行事予定_○年度.json」(年度が一番新しいもの)が自動で開きます。編集を始めるとき、その日のバックアップを「バックアップ」フォルダに1つ取ります。「データを読み込む(復元)」で開いたファイルは見るだけになり、「この内容に戻す」でいつものファイルに戻せます。新しい年度のファイルはボタンで作ります。11/19 の「フォルダから開く」「名前を付けて保存」「自動バックアップ(フォルダを選ぶ方式)」は、これに置き換えてなくしました。</li>
+    <li><strong>2026-11-21</strong>: データのファイルを「行事予定_○年度.js」にしました(バックアップも .js)。見るだけの先生は、フォルダを選ばなくても、アプリを開くだけで一番新しい年度のファイルが開きます。フォルダを選ぶのは、編集する先生が最初に「編集する」を押したときの1回だけです。以前の .json・.dat も読み込めます。.js のファイルはダブルクリックせず、アプリから開いてください。</li>
+    <li><strong>2026-11-21</strong>: データのファイルの置き方を変えました。データのフォルダを一度選ぶと、アプリを開くたびに、そのフォルダの「行事予定_○年度.js」(年度が一番新しいもの)が自動で開きます。編集を始めるとき、その日のバックアップを「バックアップ」フォルダに1つ取ります。「データを読み込む(復元)」で開いたファイルは見るだけになり、「この内容に戻す」でいつものファイルに戻せます。新しい年度のファイルはボタンで作ります。11/19 の「フォルダから開く」「名前を付けて保存」「自動バックアップ(フォルダを選ぶ方式)」は、これに置き換えてなくしました。</li>
     <li><strong>2026-11-19</strong>: 「フォルダから開く」を追加しました。データを置いているフォルダを一度選ぶと、アプリを開くたびに、その中で名前の日付が一番新しいファイル(例:行事予定_2026-11-19.json)を自動で開きます。エクスプローラーでファイルをコピーして新しい日付の名前にしたときも、ほかの先生のパソコンで新しいファイルが開きます。</li>
     <li><strong>2026-11-19</strong>: 「名前を付けて保存」で新しいファイルに保存し直したとき、前のファイルに「新しいファイルはこちら」の印を残すようにしました。ほかの先生のパソコンで前のファイルが開いたときは、お知らせが出て、新しいファイルを選ぶ画面が開きます(一度選べば、次からは新しいファイルが自動で開きます)。</li>
     <li><strong>2026-11-16</strong>: 横に長い表の上にも横スクロールバーを付けました(実績の表、時数・集計の表)。月間予定表・年間予定表の画面は、表の枠の中でスクロールするようにし、下へスクロールしても上の見出し(月間は日・曜の列も)が隠れないようにしました。印刷・Excelは変わりません。</li>
@@ -5498,7 +5588,7 @@ document.getElementById('helpBody').innerHTML = `
 
   <h4>このアプリについて</h4>
   <p>Excel(マクロ)で行っていた行事予定の入力・管理をブラウザだけで行うためのアプリです。
-  データは <code>.json</code> ファイルとしてお使いのパソコンに保存します。月間・年間予定表はExcelファイルとしても出力できます。</p>
+  データは、アプリと同じフォルダ(校務共有サーバー)の <code>行事予定_○年度.js</code> に保存します。月間・年間予定表はExcelファイルとしても出力できます。</p>
 
   <h4>編集ロックについて</h4>
   <p>このアプリは誰でも開いて内容を見ることができますが、開いた直後は「🔒 閲覧のみ」の状態で、入力・設定変更・保存はできません。
@@ -5506,7 +5596,7 @@ document.getElementById('helpBody').innerHTML = `
   前回編集モードだったかどうかに関わらず、必ず「閲覧のみ」の状態に戻ります。</p>
 
   <h4>データのフォルダと年度ごとのファイル</h4>
-  <p>データは、校務共有サーバーのフォルダに、年度ごとに <code>行事予定_2026年度.json</code> のような名前で置きます。</p>
+  <p>データは、校務共有サーバーのフォルダに、年度ごとに <code>行事予定_2026年度.js</code> のような名前で置きます。</p>
   <ul>
     <li><strong>最初に1回(パソコンごと):</strong> 画面上部の案内か、設定タブの「データのフォルダを選ぶ」で、データのフォルダを選びます。</li>
     <li><strong>ふだん:</strong> アプリを開くと、そのフォルダで名前の年度が一番新しいファイルが自動で開きます(「データを開く」ボタンを1回押すことがあります。ブラウザの決まりです)。ファイルを選ぶ必要はありません。</li>
@@ -5519,7 +5609,7 @@ document.getElementById('helpBody').innerHTML = `
   <p>「編集する」を押したときは、名前を入れてください(空のままでは始められません。名前はこのパソコンのブラウザが覚えるので、次からは最初から入っています)。ほかの先生の画面には「⚠ ○○先生が編集中(15:20〜)」と出ます。上の「編集の記録」ボタンを押すと、だれが・いつ編集したか(日付・始めた時刻〜最後に保存した時刻)を新しい順に見られます。何を変えたかは記録しません。新しいものから200件まで残ります。サンプルデータには架空の記録が入っていて、試しに編集しても記録は増えません。</p>
 
   <h4>職場サーバー等で共有する場合の同時編集への注意</h4>
-  <p>このアプリには、複数人が同時に編集した場合の排他制御(片方の変更を待たせる仕組み)はありません。.jsonファイルを職場サーバーなど複数人がアクセスできる場所に置いている場合、同時に編集して保存すると、後から保存した方の内容で上書きされてしまいます。これを防ぐ簡易的な仕組みとして、「編集する」を押した時点の状態を記録しており、直近15分以内に別の先生が編集している場合は、編集を始める前に確認メッセージが表示されます。また、閲覧のみの状態でも、画面上部に「⚠ ○○先生が編集中(◯◯:◯◯〜)」と表示されることがあります。ただしこれはあくまで簡易的な目安です。基本的には「編集は同時に1人だけ」という運用を徹底してください。</p>
+  <p>このアプリには、複数人が同時に編集した場合の排他制御(片方の変更を待たせる仕組み)はありません。.jsファイルを職場サーバーなど複数人がアクセスできる場所に置いている場合、同時に編集して保存すると、後から保存した方の内容で上書きされてしまいます。これを防ぐ簡易的な仕組みとして、「編集する」を押した時点の状態を記録しており、直近15分以内に別の先生が編集している場合は、編集を始める前に確認メッセージが表示されます。また、閲覧のみの状態でも、画面上部に「⚠ ○○先生が編集中(◯◯:◯◯〜)」と表示されることがあります。ただしこれはあくまで簡易的な目安です。基本的には「編集は同時に1人だけ」という運用を徹底してください。</p>
 
   <h4>テストデータでの動作確認</h4>
   <p>「設定」タブの「テストデータ」から、元のExcelファイルの実際の記載内容を参考にした4月分のサンプルデータを.jsonファイルとして書き出せます。現在編集中のデータには影響しません。書き出したファイルを「データを読み込む(復元)」で選ぶと、見るだけで入力例が入った状態の各タブの表示やExcel出力を試せます。すぐに試したいだけなら「サンプルデータをすぐに試す」ボタンで、ファイルを介さずその場で画面上のデータをサンプルに切り替えられます。この操作は開いていたファイル自体を一切変更・上書きしません(保存先が未設定の状態になるため、誤って元のファイルに保存される心配もありません)。お手元のデータに戻るときは、画面上部の「いつものファイルに戻る」を押してください。</p>
@@ -5584,8 +5674,8 @@ document.getElementById('helpBody').innerHTML = `
 
   <h4>ファイルの保存</h4>
   <ol>
-    <li>はじめて使うときは、データのフォルダを選びます(上の「データのフォルダと年度ごとのファイル」)。フォルダが空なら「行事予定_○年度.json を作って始める」を押します。</li>
-    <li>以前のファイル(名前が違うもの・.dat)がフォルダにあるときは、一番新しいものが見るだけで開くので、「行事予定_○年度.json の名前で保存し直す」を押します。</li>
+    <li>はじめて使うときは、データのフォルダを選びます(上の「データのフォルダと年度ごとのファイル」)。フォルダが空なら「行事予定_○年度.js を作って始める」を押します。</li>
+    <li>以前のファイル(名前が違うもの・.dat)がフォルダにあるときは、一番新しいものが見るだけで開くので、「行事予定_○年度.js の名前で保存し直す」を押します。</li>
     <li>編集中の変更は、自動的に同じファイルへ上書き保存されます(画面右上の表示で確認できます)。</li>
     <li>「データを書き出す(バックアップ)」(設定タブ)で、今の内容をこのパソコンの「ダウンロード」にも保存できます。</li>
   </ol>
@@ -5609,7 +5699,7 @@ document.getElementById('helpBody').innerHTML = `
 2. 困っていること／変更したいこと(具体的に)
 3. 現状の動作 と 期待する動作 の違い
 4. (様式変更の場合)元のExcelファイルのどのシート・どの部分に合わせたいか
-5. 可能であれば、現在使っているデータファイル(.json)も一緒に渡すと確認しながら直せます</pre>
+5. 可能であれば、現在使っているデータファイル(行事予定_○年度.js)も一緒に渡すと確認しながら直せます</pre>
 
   <h4>データが壊れた場合の備え</h4>
   <p>編集を始めるたびに(1日1つ)、データのフォルダの「バックアップ」フォルダにバックアップが取られます。戻すときは「データを読み込む(復元)」でバックアップを選び、「この内容に戻す」を押します。</p>
@@ -5629,9 +5719,9 @@ function applyLockUI(){
   }
   document.getElementById('btnSave').disabled = !editUnlocked || !fileHandle;
   // 見るだけで開いているとき・保存先(本体)がないときは編集を始められない(見本は保存しないので試せる)
-  const cannotEdit = !editUnlocked && (viewOnly || (!fileHandle && !sampleMode));
+  const cannotEdit = !editUnlocked && viewOnly;
   btn.disabled = cannotEdit;
-  btn.title = viewOnly ? '見るだけで開いているので編集できません' : (cannotEdit ? '先にデータのフォルダを開いてください' : '');
+  btn.title = viewOnly ? '見るだけで開いているので編集できません' : '';
   const warnEl = document.getElementById('editLockWarning');
   if(!editUnlocked && isEditLockFresh(state.editLock)){
     const since = new Date(state.editLock.since);
@@ -6044,7 +6134,8 @@ document.getElementById('btnUnlock').addEventListener('click', ()=>{
     refreshAll();
     refreshDataDirUI();
   } else {
-    openPasswordModal();
+    // 見るだけの先生がフォルダを選ばずに開いているときは、ここでフォルダの許可を取る
+    prepareFolderForEdit().then(ok=>{ if(ok) openPasswordModal(); });
   }
 });
 document.getElementById('pwCancel').addEventListener('click', closePasswordModal);
@@ -6065,7 +6156,7 @@ async function submitPasswordUnlock(){
       try{
         const file = await fileHandle.getFile();
         const freshText = await file.text();
-        const fresh = JSON.parse(freshText);
+        const fresh = parseDataText(freshText);
         if(isEditLockFresh(fresh.editLock)){
           const mins = Math.max(1, Math.round((Date.now() - new Date(fresh.editLock.since).getTime())/60000));
           const who = fresh.editLock.by ? fresh.editLock.by+'先生が' : '別の場所で';
