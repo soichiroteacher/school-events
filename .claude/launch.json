@@ -11,7 +11,7 @@
       "name": "timetable",
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "../timetable/serve.ps1"],
-      "port": 8420
+      "port": 8421
     }
   ]
 }
